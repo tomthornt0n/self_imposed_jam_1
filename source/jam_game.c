@@ -29,15 +29,22 @@ Game_UpdateAndRender(const OS_GameInput *input)
 {
  static FS_State falling_sand_state = {0};
  
+ static int brush_radius = 10;
+ 
  R_ClearScreen(input);
  
  if (input->is_key_down[OS_Key_mouseLeft])
  {
-  FS_PlaceCell(&falling_sand_state, input->mouse_x, input->mouse_y, FS_CellKind_sand);
+  FS_SetCells(&falling_sand_state, input->mouse_x, input->mouse_y, brush_radius, FS_CellKind_sand);
  }
  else if (input->is_key_down[OS_Key_mouseRight])
  {
-  FS_PlaceCell(&falling_sand_state, input->mouse_x, input->mouse_y, FS_CellKind_water);
+  FS_SetCells(&falling_sand_state, input->mouse_x, input->mouse_y, brush_radius, FS_CellKind_water);
+ }
+ else if (input->is_key_down[OS_Key_mouseMiddle])
+ {
+  
+  FS_SetCells(&falling_sand_state, input->mouse_x, input->mouse_y, brush_radius, FS_CellKind_stone);
  }
  
  FS_Update(input, &falling_sand_state);
