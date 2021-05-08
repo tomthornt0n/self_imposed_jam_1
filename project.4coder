@@ -56,9 +56,35 @@ command_list =
             { "echo Linux run command not implemented for 4coder project.", .os = "linux" },
         },
     },
-              
+    
+    {
+        .name = "build_resources",
+        .out = "*compilation*",
+        .footer_panel = true,
+        .save_dirty_files = true,
+        .cursor_at_end = false,
+        .cmd =
+        {
+            { ".\windows_build_resources.bat", .os = "win" },
+            { "echo Linux build assets command not implemented for 4coder project.", .os = "linux" },
+        },
+    },
+
+    {
+        .name = "build_resource_packer",
+        .out = "*compilation*",
+        .footer_panel = true,
+        .save_dirty_files = true,
+        .cursor_at_end = false,
+        .cmd =
+        {
+            { "cd build && cl ..\source\resembed.c /O2 /link Shlwapi.lib /out:resembed.exe", .os = "win" },
+            { "echo Linux build assets command not implemented for 4coder project.", .os = "linux" },
+        },
+    },
 };
           
 fkey_command[1] = "build";
 fkey_command[2] = "run";
-
+fkey_command[3] = "build_resources";
+fkey_command[12] = "build_resource_packer";

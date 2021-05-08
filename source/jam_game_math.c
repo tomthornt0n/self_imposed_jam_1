@@ -1,28 +1,64 @@
 static float
-MA_Smoothstep(float t)
+MAT_Smoothstep(float t)
 {
  return t * t * (3 - 2 * t);
 }
 
 static float
-MA_InterpolateLinearF(float a,
-                      float b,
-                      float t)
+MAT_InterpolateLinearF(float a,
+                       float b,
+                       float t)
 {
  return a + t * (b - 1);
 }
 
 static float
-MA_InterpolateSmoothF(float a,
-                      float b,
-                      float t)
+MAT_InterpolateSmoothF(float a,
+                       float b,
+                       float t)
 {
- return MA_InterpolateLinearF(a, b, MA_Smoothstep(t));
+ return MAT_InterpolateLinearF(a, b, MAT_Smoothstep(t));
+}
+
+static inline int
+MAT_MinI(int a,
+         int b)
+{
+ if (a < b)
+ {
+  return a;
+ }
+ else
+ {
+  return b;
+ }
+}
+
+static inline int
+MAT_MaxI(int a,
+         int b)
+{
+ if (a > b)
+ {
+  return a;
+ }
+ else
+ {
+  return b;
+ }
+}
+
+static inline int
+MAT_ClampI(int a,
+           int min,
+           int max)
+{
+ return (MAT_MaxI(min, MAT_MinI(max, a)));
 }
 
 static inline float
-MA_MinF(float a,
-        float b)
+MAT_MinF(float a,
+         float b)
 {
  if (a < b)
  {
@@ -35,9 +71,23 @@ MA_MinF(float a,
 }
 
 static inline float
-MA_ClampF(float a,
-          float min,
-          float max)
+MAT_MaxF(float a,
+         float b)
 {
- return (MA_MaxF(min, MA_MinF(max, a)));
+ if (a > b)
+ {
+  return a;
+ }
+ else
+ {
+  return b;
+ }
+}
+
+static inline float
+MAT_ClampF(float a,
+           float min,
+           float max)
+{
+ return (MAT_MaxF(min, MAT_MinF(max, a)));
 }

@@ -116,5 +116,12 @@ typedef struct
  int is_key_down[OS_Key_MAX];
 } OS_GameInput;
 
-void Game_Initialise(void);
-void Game_UpdateAndRender(const OS_GameInput *input);
+void GME_Initialise(void);
+void GME_UpdateAndRender(const OS_GameInput *input);
+
+typedef enum
+{
+ OS_ResourceID_bg,
+} OS_ResourceID;
+
+void *OS_ResourceGet(OS_ResourceID id);

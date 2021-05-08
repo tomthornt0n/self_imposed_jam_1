@@ -1,247 +1,312 @@
 typedef enum
 {
- FS_CellKind_empty,
- FS_CellKind_sand,
- FS_CellKind_water,
- FS_CellKind_stone,
+ FLS_CellKind_empty,
+ FLS_CellKind_sand,
+ FLS_CellKind_water,
+ FLS_CellKind_stone,
+ FLS_CellKind_gas,
+ FLS_CellKind_dirt,
  
- FS_CellKind_MAX,
-} FS_CellKind;
+ FLS_CellKind_MAX,
+} FLS_CellKind;
 
-typedef unsigned int FS_CellFlags;
+typedef unsigned int FLS_CellFlags;
 typedef enum
 {
- FS_CellFlags_fallDown        = 1 << 0,
- FS_CellFlags_fallHorizontal  = 1 << 1,
-} FS_CellFlags_ENUM;
+ FLS_CellFlags_fall   = 1 << 0,
+ FLS_CellFlags_spread = 1 << 1,
+ FLS_CellFlags_rise   = 1 << 2,
+ FLS_CellFlags_solid  = 1 << 3,
+} FLS_CellFlags_ENUM;
 
 typedef struct
 {
- FS_CellKind cells[OS_gameFixedW * OS_gameFixedH];
-} FS_State;
+ double accumulator;
+ FLS_CellKind cells[OS_gameFixedW * OS_gameFixedH];
+} FLS_State;
 
-#define FS_CellAt(_state, _x, _y) ((_state)->cells[OS_GamePixelIndex(_x, _y)])
+#define FLS_CellAt(_state, _x, _y) ((_state)->cells[OS_GamePixelIndex(_x, _y)])
 
-#define FS_IsCellInBounds(_x, _y) ((_x) >= 0 && (_x) < OS_gameFixedW && (_y) >= 0 && (_y) < OS_gameFixedH)
+#define FLS_IsCellInBounds(_x, _y) ((_x) >= 0 && (_x) < OS_gameFixedW && (_y) >= 0 && (_y) < OS_gameFixedH)
 
-#define FS_GetColour(_state, _x, _y) (FS_IsCellInBounds(_x, _y) ? (FS_cellTable[FS_CellAt(_state, _x, _y)].get_colour(_state, _x, _y)) : (Colour){0})
+#define FLS_CellHasFlag(_cell, _flags) (FLS_cellTable[_cell].flags & (_flags))
 
-#define FS_CellHasFlag(_cell, _flags) (FS_cellTable[_cell].flags & (_flags))
+#define FLS_CellAtHasFlag(_state, _x, _y, _flags) (FLS_CellHasFlag(FLS_CellAt(_state, _x, _y), _flags))
 
-#define FS_CellAtHasFlag(_state, _x, _y, _flags) (FS_CellHasFlag(FS_CellAt(_state, _x, _y), _flags))
+#define FLS_GetColour(_state, _x, _y) (FLS_IsCellInBounds(_x, _y) ? (FLS_cellTable[FLS_CellAt(_state, _x, _y)].get_colour(_state, _x, _y)) : (Colour){0})
 
+typedef Colour ( *FLS_GetColourCallback) (const FLS_State *state, int x, int y);
+#include "jam_game_falling_sand_colour_funcs.c"
 
-static Colour
-FS_EmptyGetColour(const FS_State *state,
-                  int x,
-                  int y)
+struct FLS_Cell
 {
- return (Colour){ 0, 0, 0, 0 };
-}
-
-static Colour
-FS_SandGetColour(const FS_State *state,
-                 int x,
-                 int y)
-{
- float b = 66.0f  / 255.0f;
- float g = 135.0f / 255.0f;
- float r = 245.0f / 255.0f;
- 
- b = MA_MinF(1.0f, b + (RNG_Perlin_2D(x, y, 0.9f, 4) * 0.00000002f));
- g = MA_MinF(1.0f, g + (RNG_Perlin_2D(x, y, 0.9f, 4) * 0.00000002f));
- r = MA_MinF(1.0f, r + (RNG_Perlin_2D(x, y, 0.9f, 4) * 0.00000002f));
- 
- return (Colour){ 255 * b, 255 * g, 255 * r, 255 };
-}
-
-static Colour
-FS_WaterGetColour(const FS_State *state,
-                  int x,
-                  int y)
-{
- Colour result = (Colour){ 245, 135, 66, 60 };
- 
- while (FS_CellKind_water == FS_CellAt(state, x, y) &&
-        result.a < 255)
- {
-  result.a += 2;
-  y += 1;
- }
- 
- return result;
-}
-
-static Colour
-FS_StoneGetColour(const FS_State *state,
-                  int x,
-                  int y)
-{
- float b = 56.0f  / 255.0f;
- float g = 55.0f / 255.0f;
- float r = 55.0f / 255.0f;
- 
- b = MA_MinF(1.0f, b + (RNG_Perlin_2D(x, y, 1.0f, 4) * 0.00000002f));
- g = MA_MinF(1.0f, g + (RNG_Perlin_2D(x, y, 1.0f, 4) * 0.00000002f));
- r = MA_MinF(1.0f, r + (RNG_Perlin_2D(x, y, 1.0f, 4) * 0.00000002f));
- 
- return (Colour){ 255 * b, 255 * g, 255 * r, 255 };
-}
-
-typedef Colour ( *FS_GetColourCallback) (const FS_State *state, int x, int y);
-
-struct FS_Cell
-{
- FS_GetColourCallback get_colour;
- FS_CellFlags flags;
+ FLS_GetColourCallback get_colour;
+ FLS_CellFlags flags;
  int density;
-} FS_cellTable[FS_CellKind_MAX] =
+} FLS_cellTable[FLS_CellKind_MAX] =
 {
- [FS_CellKind_empty] =
+ [FLS_CellKind_empty] =
  {
-  .get_colour = FS_EmptyGetColour,
+  .get_colour = FLS_EmptyGetColour,
   .flags = 0,
   .density = 0,
  },
  
- [FS_CellKind_sand] =
+ [FLS_CellKind_sand] =
  {
-  .get_colour = FS_SandGetColour,
-  .flags = FS_CellFlags_fallDown,
+  .get_colour = FLS_SandGetColour,
+  .flags = FLS_CellFlags_fall,
   .density = 2,
  },
  
- [FS_CellKind_water] =
+ [FLS_CellKind_water] =
  {
-  .get_colour = FS_WaterGetColour,
-  .flags = (FS_CellFlags_fallDown |
-            FS_CellFlags_fallHorizontal),
+  .get_colour = FLS_WaterGetColour,
+  .flags = (FLS_CellFlags_fall |
+            FLS_CellFlags_spread),
   .density = 1,
  },
  
- [FS_CellKind_stone] = 
+ [FLS_CellKind_stone] = 
  {
-  .get_colour = FS_StoneGetColour,
-  .flags = 0,
+  .get_colour = FLS_StoneGetColour,
+  .flags = FLS_CellFlags_solid,
   .density = 999,
- }
+ },
+ 
+ [FLS_CellKind_gas] =
+ {
+  .get_colour = FLS_GasGetColour,
+  .flags = (FLS_CellFlags_spread |
+            FLS_CellFlags_rise),
+  .density = -1,
+ },
+ 
+ [FLS_CellKind_dirt] = 
+ {
+  .get_colour = FLS_DirtGetColour,
+  .flags = FLS_CellFlags_solid,
+  .density = 999,
+ },
 };
 
 static void
-FS_CellSwap(FS_State *state,
-            int x0, int y0,
-            int x1, int y1)
+FLS_CellSwap(FLS_State *state,
+             int x0, int y0,
+             int x1, int y1)
 {
- FS_CellKind temp = FS_CellAt(state, x0, y0);
- FS_CellAt(state, x0, y0) = FS_CellAt(state, x1, y1);
- FS_CellAt(state, x1, y1) = temp;
+ FLS_CellKind temp = FLS_CellAt(state, x0, y0);
+ FLS_CellAt(state, x0, y0) = FLS_CellAt(state, x1, y1);
+ FLS_CellAt(state, x1, y1) = temp;
 }
 
 static int
-FS_CellCanFallTo(FS_State *state,
-                 int x0, int y0,
-                 int x1, int y1)
+FLS_CellCanFallTo(FLS_State *state,
+                  int x0, int y0,
+                  int x1, int y1)
 {
- return ((FS_cellTable[FS_CellAt(state, x1, y1)].density <
-          FS_cellTable[FS_CellAt(state, x0, y0)].density) &&
-         FS_IsCellInBounds(x1, y1));
+ if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_rise))
+ {
+  return (FLS_IsCellInBounds(x0, y0) &&
+          FLS_IsCellInBounds(x1, y1) &&
+          ((!FLS_CellAtHasFlag(state, x1, y1, FLS_CellFlags_solid)) &&
+           FLS_cellTable[FLS_CellAt(state, x1, y1)].density >
+           FLS_cellTable[FLS_CellAt(state, x0, y0)].density));
+ }
+ else
+ {
+  return (FLS_IsCellInBounds(x0, y0) &&
+          FLS_IsCellInBounds(x1, y1) &&
+          (FLS_cellTable[FLS_CellAt(state, x1, y1)].density <
+           FLS_cellTable[FLS_CellAt(state, x0, y0)].density));
+ }
 }
 
 static void
-FS_SetCells(FS_State *state,
-            int x, int y,
-            int radius,
-            FS_CellKind kind)
+FLS_SetCells(FLS_State *state,
+             int x, int y,
+             int radius,
+             FLS_CellKind kind)
 {
- for (int y0 = -radius;
-      y0 <= radius;
-      y0 += 1)
+ if (radius)
  {
-  for (int x0 = -radius;
-       x0 <= radius;
-       x0 += 1)
+  for (int y0 = -radius;
+       y0 <= radius;
+       y0 += 1)
   {
-   if (x0 * x0 + y0 * y0 <= radius * radius)
+   for (int x0 = -radius;
+        x0 <= radius;
+        x0 += 1)
    {
-    FS_CellAt(state, x + x0, y + y0) = kind;
+    if (x0 * x0 + y0 * y0 <= radius * radius &&
+        FLS_IsCellInBounds(x + x0, y + y0))
+    {
+     FLS_CellAt(state, x + x0, y + y0) = kind;
+    }
+   }
+  }
+ }
+ else if (FLS_IsCellInBounds(x, y))
+ {
+  FLS_CellAt(state, x, y) = kind;
+ }
+}
+
+static void
+FLS_StateFromTexture(FLS_State *state,
+                     const RES_Texture *texture)
+{
+ int max_x = MAT_MinI(texture->w, OS_gameFixedW);
+ int max_y = MAT_MinI(texture->h, OS_gameFixedH);
+ 
+ for (int x = 0;
+      x < max_x;
+      x += 1)
+ {
+  for (int y = 0;
+       y < max_y;
+       y += 1)
+  {
+   unsigned long *pixel = (unsigned long *)(&texture->buffer[x + y * texture->w]);
+   
+   if (*pixel == 0xFF000000)
+   {
+    FLS_CellAt(state, x, y) = FLS_CellKind_stone;
+   }
+   else if (*pixel == 0xFFFF0000)
+   {
+    FLS_CellAt(state, x, y) = FLS_CellKind_sand;
+   }
+   else if (*pixel == 0xFF0000FF)
+   {
+    FLS_CellAt(state, x, y) = FLS_CellKind_water;
+   }
+   else if (*pixel == 0xFF00FF00)
+   {
+    FLS_CellAt(state, x, y) = FLS_CellKind_gas;
+   }
+   else
+   {
+    FLS_CellAt(state, x, y) = FLS_CellKind_empty;
    }
   }
  }
 }
 
 static void
-FS_Update(const OS_GameInput *input,
-          FS_State *state)
+FLS_Update(const OS_GameInput *input,
+           FLS_State *state)
 {
- int is_not_dirty[OS_gameFixedW * OS_gameFixedH] = {0};
+ double timestep = 0.01f;
  
- for (int y = 0;
-      y < OS_gameFixedH;
-      y += 1)
+ state->accumulator += input->dt;
+ 
+ while (state->accumulator > timestep)
  {
-  for (int x = 0;
-       x < OS_gameFixedW;
-       x += 1)
+  state->accumulator -= timestep;
+  
+  int has_already_been_updated[OS_gameFixedW * OS_gameFixedH] = {0};
+  
+  for (int y0 = 0;
+       y0 < OS_gameFixedH;
+       y0 += 1)
   {
-   if (!is_not_dirty[x + y * OS_gameFixedW])
+   for (int x0 = 0;
+        x0 < OS_gameFixedW;
+        x0 += 1)
    {
-    is_not_dirty[x + y * OS_gameFixedW] = 1;
+    int x1 = x0, y1 = y0;
     
-    if (FS_CellAtHasFlag(state, x, y, FS_CellFlags_fallDown))
+    if (has_already_been_updated[OS_GamePixelIndex(x0, y0)]) { continue; }
+    
+    if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_rise))
     {
-     if (FS_CellCanFallTo(state, x, y, x, y + 1))
+     if (FLS_CellCanFallTo(state, x0, y0, x0, y0 - 1))
      {
-      FS_CellSwap(state, x, y, x, y + 1);
-      is_not_dirty[OS_GamePixelIndex(x, y + 1)] = 1;
-      continue;
+      y1 = y0 - 1;
+      goto move_cell;
      }
-     else if (FS_CellCanFallTo(state, x, y, x - 1, y + 1))
+     else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 - 1))
      {
-      if (FS_CellCanFallTo(state, x, y, x + 1, y + 1))
+      if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 - 1) &&
+          RNG_RandIntNext(0, 2))
       {
-       int dir = (RNG_NextRandInt(0, 2) % 2) ? -1 : 1;
-       FS_CellSwap(state, x, y, x + dir, y + 1);
-       is_not_dirty[OS_GamePixelIndex(x + dir, y + 1)] = 1;
+       x1 = x0 + 1;
+       y1 = y0 - 1;
       }
       else
       {
-       FS_CellSwap(state, x, y, x - 1, y + 1);
-       is_not_dirty[OS_GamePixelIndex(x - 1, y + 1)] = 1;
+       x1 = x0 - 1;
+       y1 = y0 - 1;
       }
-      continue;
+      goto move_cell;
      }
-     else if (FS_CellCanFallTo(state, x, y, x + 1, y + 1))
+     else if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 - 1))
      {
-      FS_CellSwap(state, x, y, x + 1, y + 1);
-      is_not_dirty[OS_GamePixelIndex(x + 1, y + 1)] = 1;
-      continue;
+      x1 = x0 + 1;
+      y1 = y0 - 1;
+      goto move_cell;
      }
     }
     
-    if (FS_CellAtHasFlag(state, x, y, FS_CellFlags_fallHorizontal))
+    if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fall))
     {
-     if (FS_CellCanFallTo(state, x, y, x + 1, y))
+     if (FLS_CellCanFallTo(state, x0, y0, x0, y0 + 1))
      {
-      if (FS_CellCanFallTo(state, x, y, x - 1, y))
+      y1 = y0 + 1;
+      goto move_cell;
+     }
+     else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 + 1))
+     {
+      if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1) &&
+          RNG_RandIntNext(0, 2))
       {
-       int dir = (RNG_NextRandInt(0, 2) % 2) ? -1 : 1;
-       FS_CellSwap(state, x, y, x + dir, y);
-       is_not_dirty[OS_GamePixelIndex(x + 1, y)] = 1;
+       x1 = x0 + 1;
+       y1 = y0 + 1;
       }
       else
       {
-       FS_CellSwap(state, x, y, x + 1, y);
-       is_not_dirty[OS_GamePixelIndex(x + 1, y)] = 1;
+       x1 = x0 - 1;
+       y1 = y0 + 1;
       }
-      continue;
+      goto move_cell;
      }
-     else if (FS_CellCanFallTo(state, x, y, x - 1, y))
+     else if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1))
      {
-      FS_CellSwap(state, x, y, x - 1, y);
-      is_not_dirty[OS_GamePixelIndex(x - 1, y)] = 1;
-      continue;
+      x1 = x0 + 1;
+      y1 = y0 + 1;
+      goto move_cell;
      }
     }
+    
+    if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_spread))
+    {
+     if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0))
+     {
+      if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0) &&
+          RNG_RandIntNext(0, 2))
+      {
+       x1 = x0 - 1;
+      }
+      else
+      {
+       x1 = x0 + 1;
+      }
+      goto move_cell;
+     }
+     else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0))
+     {
+      x1 = x0 - 1;
+      goto move_cell;
+     }
+    }
+    
+    has_already_been_updated[OS_GamePixelIndex(x0, y0)] = 1;
+    
+    move_cell:
+    has_already_been_updated[OS_GamePixelIndex(x0, y0)] = 1;
+    has_already_been_updated[OS_GamePixelIndex(x1, y1)] = 1;
+    FLS_CellSwap(state, x0, y0, x1, y1);
    }
   }
  }

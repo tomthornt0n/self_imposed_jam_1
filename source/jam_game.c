@@ -13,41 +13,33 @@ typedef struct
 #define RectLit(_x, _y, _w, _h) ((Rect[]){ (Rect){ _x, _y, _x + _w, _y + _h } })
 
 #include "jam_game_os.c"
+#include "jam_game_resources.gen.c"
 #include "jam_game_math.c"
 #include "jam_game_rng.c"
 #include "jam_game_falling_sand.c"
 #include "jam_game_renderer.c"
+#include "jam_game_entities.c"
+
+FLS_State GME_fallingSandState;
+
+RES_Texture GME_backgroundTexture;
 
 void
-Game_Initialise(void)
+GME_Initialise(void)
 {
- return;
+ RES_BackgroundTextureGet(&GME_backgroundTexture);
+ 
+ RES_Texture level_1_texture;
+ RES_Level1TextureGet(&level_1_texture);
+ FLS_StateFromTexture(&GME_fallingSandState, &level_1_texture);
 }
 
 void
-Game_UpdateAndRender(const OS_GameInput *input)
+GME_UpdateAndRender(const OS_GameInput *input)
 {
- static FS_State falling_sand_state = {0};
+ FLS_Update(input, &GME_fallingSandState);
  
- static int brush_radius = 10;
- 
- R_ClearScreen(input);
- 
- if (input->is_key_down[OS_Key_mouseLeft])
- {
-  FS_SetCells(&falling_sand_state, input->mouse_x, input->mouse_y, brush_radius, FS_CellKind_sand);
- }
- else if (input->is_key_down[OS_Key_mouseRight])
- {
-  FS_SetCells(&falling_sand_state, input->mouse_x, input->mouse_y, brush_radius, FS_CellKind_water);
- }
- else if (input->is_key_down[OS_Key_mouseMiddle])
- {
-  
-  FS_SetCells(&falling_sand_state, input->mouse_x, input->mouse_y, brush_radius, FS_CellKind_stone);
- }
- 
- FS_Update(input, &falling_sand_state);
- 
- R_DrawFallingSand(input, &falling_sand_state);
+ RDR_ClearScreen(input);
+ RDR_DrawTexture(input, &GME_backgroundTexture, 0, 0);
+ RDR_DrawFallingSand(input, &GME_fallingSandState);
 }

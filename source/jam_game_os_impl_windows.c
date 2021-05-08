@@ -61,7 +61,8 @@ int
 WINAPI WinMain(HINSTANCE instance_handle,
                HINSTANCE prev_instance_handle,
                LPSTR command_line,
-               int show_mode) {
+               int show_mode)
+{
  
  Windows_InitialiseRendering();
  
@@ -103,7 +104,7 @@ WINAPI WinMain(HINSTANCE instance_handle,
  Windows_globalState.game_input.window_w = OS_gameFixedW;
  Windows_globalState.game_input.window_h = OS_gameFixedH;
  
- Game_Initialise();
+ GME_Initialise();
  
  LARGE_INTEGER freq, start_t = {0}, end_t = {0};
  QueryPerformanceFrequency(&freq);
@@ -128,7 +129,7 @@ WINAPI WinMain(HINSTANCE instance_handle,
   }
   else
   {
-   Game_UpdateAndRender(&Windows_globalState.game_input);
+   GME_UpdateAndRender(&Windows_globalState.game_input);
   }
   
   HDC device_context_handle = GetDC(window_handle);
@@ -165,7 +166,7 @@ Windows_EventCallback(HWND window_handle,
  else if (WM_SIZE == message)
  {
   Windows_UpdateWindowSize(window_handle);
-  Game_UpdateAndRender(&Windows_globalState.game_input);
+  GME_UpdateAndRender(&Windows_globalState.game_input);
   return 0;
  }
  else if (WM_KEYDOWN == message ||
