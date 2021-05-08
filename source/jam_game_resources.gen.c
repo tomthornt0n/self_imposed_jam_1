@@ -7,3 +7,4 @@ typedef struct
 
 void RES_BackgroundTextureGet(RES_Texture *result);
 void RES_Level1TextureGet(RES_Texture *result);
+void RES_PlayerTextureGet(RES_Texture *result);

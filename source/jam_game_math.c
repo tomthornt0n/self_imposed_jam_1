@@ -1,3 +1,7 @@
+//
+// NOTE(tbt): basic math helpers
+//
+
 static float
 MAT_Smoothstep(float t)
 {
@@ -56,6 +60,12 @@ MAT_ClampI(int a,
  return (MAT_MaxI(min, MAT_MinI(max, a)));
 }
 
+static inline int
+MAT_AbsI(int a)
+{
+ return ((a < 0) ? -a : a);
+}
+
 static inline float
 MAT_MinF(float a,
          float b)
@@ -90,4 +100,12 @@ MAT_ClampF(float a,
            float max)
 {
  return (MAT_MaxF(min, MAT_MinF(max, a)));
+}
+
+static inline float
+MAT_AbsF(float a)
+{
+ union { float f; unsigned int u; } u_from_f;
+ u_from_f.f = a;
+ u_from_f.u &= ~(1 << 31);
 }

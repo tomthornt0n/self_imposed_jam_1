@@ -1,3 +1,7 @@
+//
+// NOTE(tbt): simple, kind of hacky, falling sand sim
+//
+
 typedef enum
 {
  FLS_CellKind_empty,
@@ -22,21 +26,24 @@ typedef enum
 typedef struct
 {
  double accumulator;
- FLS_CellKind cells[OS_gameFixedW * OS_gameFixedH];
+ FLS_CellKind cells[PLT_gameFixedW * PLT_gameFixedH];
 } FLS_State;
 
-#define FLS_CellAt(_state, _x, _y) ((_state)->cells[OS_GamePixelIndex(_x, _y)])
+#define FLS_CellAt(_state, _x, _y) ((_state)->cells[PLT_GamePixelIndex(MAT_ClampI(_x, 0, PLT_gameFixedW - 1), MAT_ClampI(_y, 0, PLT_gameFixedH - 1))])
 
-#define FLS_IsCellInBounds(_x, _y) ((_x) >= 0 && (_x) < OS_gameFixedW && (_y) >= 0 && (_y) < OS_gameFixedH)
+#define FLS_IsCellInBounds(_x, _y) ((_x) >= 0 && (_x) < PLT_gameFixedW && (_y) >= 0 && (_y) < PLT_gameFixedH)
 
 #define FLS_CellHasFlag(_cell, _flags) (FLS_cellTable[_cell].flags & (_flags))
 
 #define FLS_CellAtHasFlag(_state, _x, _y, _flags) (FLS_CellHasFlag(FLS_CellAt(_state, _x, _y), _flags))
 
-#define FLS_GetColour(_state, _x, _y) (FLS_IsCellInBounds(_x, _y) ? (FLS_cellTable[FLS_CellAt(_state, _x, _y)].get_colour(_state, _x, _y)) : (Colour){0})
-
 typedef Colour ( *FLS_GetColourCallback) (const FLS_State *state, int x, int y);
-#include "jam_game_falling_sand_colour_funcs.c"
+
+static Colour FLS_SandGetColour(const FLS_State *state, int x, int y);
+static Colour FLS_WaterGetColour(const FLS_State *state, int x, int y);
+static Colour FLS_StoneGetColour(const FLS_State *state, int x, int y);
+static Colour FLS_GasGetColour(const FLS_State *state, int x, int y);
+static Colour FLS_DirtGetColour(const FLS_State *state, int x, int y);
 
 struct FLS_Cell
 {
@@ -45,25 +52,17 @@ struct FLS_Cell
  int density;
 } FLS_cellTable[FLS_CellKind_MAX] =
 {
- [FLS_CellKind_empty] =
- {
-  .get_colour = FLS_EmptyGetColour,
-  .flags = 0,
-  .density = 0,
- },
- 
  [FLS_CellKind_sand] =
  {
   .get_colour = FLS_SandGetColour,
-  .flags = FLS_CellFlags_fall,
+  .flags = FLS_CellFlags_fall | FLS_CellFlags_solid,
   .density = 2,
  },
  
  [FLS_CellKind_water] =
  {
   .get_colour = FLS_WaterGetColour,
-  .flags = (FLS_CellFlags_fall |
-            FLS_CellFlags_spread),
+  .flags = FLS_CellFlags_fall | FLS_CellFlags_spread,
   .density = 1,
  },
  
@@ -77,8 +76,7 @@ struct FLS_Cell
  [FLS_CellKind_gas] =
  {
   .get_colour = FLS_GasGetColour,
-  .flags = (FLS_CellFlags_spread |
-            FLS_CellFlags_rise),
+  .flags = FLS_CellFlags_spread | FLS_CellFlags_rise,
   .density = -1,
  },
  
@@ -89,6 +87,91 @@ struct FLS_Cell
   .density = 999,
  },
 };
+
+#include "jam_game_falling_sand_colours.c"
+
+static Colour
+FLS_SandGetColour(const FLS_State *state,
+                  int x,
+                  int y)
+{
+ float scale = 0.9f;
+ float b = 66.0f, g = 135.0f, r = 245.0f;
+ return FSC_PerlinNoise(state, x, y, scale, b, g, r);
+}
+
+static Colour
+FLS_WaterGetColour(const FLS_State *state,
+                   int x,
+                   int y)
+{
+ Colour base = (Colour){ 245, 135, 66, 120 };
+ Colour light = (Colour){ 255, 245, 245, 180 };
+ float depth_gradient_amount = 0.25f;
+ return FSC_Liquid(state, x, y, &base, &light, depth_gradient_amount);
+}
+
+static Colour
+FLS_StoneGetColour(const FLS_State *state,
+                   int x,
+                   int y)
+{
+ float scale = 1.0f;
+ float b = 56.0f, g = 55.0f, r = 55.0f;
+ return FSC_PerlinNoise(state, x, y, scale, b, g, r);
+}
+
+static Colour
+FLS_GasGetColour(const FLS_State *state,
+                 int x,
+                 int y)
+{
+ return (Colour){ 135, 245, 66, 60 };
+}
+
+static Colour
+FLS_DirtGetColour(const FLS_State *state,
+                  int x,
+                  int y)
+{
+ enum { colour_count = 10 };
+ Colour colours[colour_count] =
+ {
+  {  64, 133,  79, 255 },
+  {  34,  78,  44, 255 },
+  {  85, 100, 121, 255 },
+  {  62,  73,  88, 255 },
+  {  37,  33,  50, 255 },
+  {  37,  27,  41, 255 },
+  {  29,  19,  27, 255 },
+  {  20,  13,  13, 255 },
+  {   8,   4,   4, 255 },
+  {   0,   0,   0, 255 },
+ };
+ return FSC_Stratified(state, x, y, colours, colour_count, 1);
+}
+
+static Colour FLS_GetColour(const FLS_State *state,
+                            int x,
+                            int y)
+{
+ if (FLS_IsCellInBounds(x, y))
+ {
+  FLS_GetColourCallback callback = FLS_cellTable[FLS_CellAt(state, x, y)].get_colour;
+  if (callback)
+  {
+   return callback(state, x, y);
+  }
+  else
+  {
+   return (Colour){0};
+  }
+ }
+ else
+ {
+  return (Colour){0};
+ }
+}
 
 static void
 FLS_CellSwap(FLS_State *state,
@@ -156,8 +239,8 @@ static void
 FLS_StateFromTexture(FLS_State *state,
                      const RES_Texture *texture)
 {
- int max_x = MAT_MinI(texture->w, OS_gameFixedW);
- int max_y = MAT_MinI(texture->h, OS_gameFixedH);
+ int max_x = MAT_MinI(texture->w, PLT_gameFixedW);
+ int max_y = MAT_MinI(texture->h, PLT_gameFixedH);
  
  for (int x = 0;
       x < max_x;
@@ -173,7 +256,7 @@ FLS_StateFromTexture(FLS_State *state,
    {
     FLS_CellAt(state, x, y) = FLS_CellKind_stone;
    }
-   else if (*pixel == 0xFFFF0000)
+   else if (*pixel == 0xFFFFFF00)
    {
     FLS_CellAt(state, x, y) = FLS_CellKind_sand;
    }
@@ -185,6 +268,10 @@ FLS_StateFromTexture(FLS_State *state,
    {
     FLS_CellAt(state, x, y) = FLS_CellKind_gas;
    }
+   else if (*pixel == 0xFFFF0000)
+   {
+    FLS_CellAt(state, x, y) = FLS_CellKind_dirt;
+   }
    else
    {
     FLS_CellAt(state, x, y) = FLS_CellKind_empty;
@@ -194,7 +281,7 @@ FLS_StateFromTexture(FLS_State *state,
 }
 
 static void
-FLS_Update(const OS_GameInput *input,
+FLS_Update(const PLT_GameInput *input,
            FLS_State *state)
 {
  double timestep = 0.01f;
@@ -205,19 +292,19 @@ FLS_Update(const OS_GameInput *input,
  {
   state->accumulator -= timestep;
   
-  int has_already_been_updated[OS_gameFixedW * OS_gameFixedH] = {0};
+  int has_already_been_updated[PLT_gameFixedW * PLT_gameFixedH] = {0};
   
   for (int y0 = 0;
-       y0 < OS_gameFixedH;
+       y0 < PLT_gameFixedH;
        y0 += 1)
   {
    for (int x0 = 0;
-        x0 < OS_gameFixedW;
+        x0 < PLT_gameFixedW;
         x0 += 1)
    {
     int x1 = x0, y1 = y0;
     
-    if (has_already_been_updated[OS_GamePixelIndex(x0, y0)]) { continue; }
+    if (has_already_been_updated[PLT_GamePixelIndex(x0, y0)]) { continue; }
     
     if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_rise))
     {
@@ -301,11 +388,11 @@ FLS_Update(const OS_GameInput *input,
      }
     }
     
-    has_already_been_updated[OS_GamePixelIndex(x0, y0)] = 1;
+    has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
     
     move_cell:
-    has_already_been_updated[OS_GamePixelIndex(x0, y0)] = 1;
-    has_already_been_updated[OS_GamePixelIndex(x1, y1)] = 1;
+    has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
+    has_already_been_updated[PLT_GamePixelIndex(x1, y1)] = 1;
     FLS_CellSwap(state, x0, y0, x1, y1);
    }
   }

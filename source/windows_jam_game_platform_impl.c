@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#include "jam_game_os.c"
+#include "jam_game_platform.c"
 
 typedef struct
 {
@@ -13,8 +13,9 @@ typedef struct
  
  BITMAPINFO bitmap_info;
  
- OS_GameInput game_input;
+ PLT_GameInput game_input;
  
+ int is_game_intialised;
 } Windows_GlobalState;
 Windows_GlobalState Windows_globalState;
 
@@ -81,14 +82,14 @@ WINAPI WinMain(HINSTANCE instance_handle,
  DWORD window_styles = WS_OVERLAPPEDWINDOW;
  int window_x = CW_USEDEFAULT;
  int window_y = CW_USEDEFAULT;
- int window_w = OS_gameFixedW;
- int window_h = OS_gameFixedH;
+ int window_w = PLT_gameFixedW;
+ int window_h = PLT_gameFixedH;
  
  RECT window_rect = {0, 0, window_w, window_h};
  AdjustWindowRect(&window_rect, window_styles, FALSE);
  
  HWND window_handle = CreateWindowA(window_class_name,
-                                    OS_windowTitle,
+                                    PLT_windowTitle,
                                     window_styles,
                                     window_x, window_y,
                                     window_rect.right-window_rect.left,
@@ -101,10 +102,11 @@ WINAPI WinMain(HINSTANCE instance_handle,
  
  Windows_UpdateWindowSize(window_handle);
  
- Windows_globalState.game_input.window_w = OS_gameFixedW;
- Windows_globalState.game_input.window_h = OS_gameFixedH;
+ Windows_globalState.game_input.window_w = PLT_gameFixedW;
+ Windows_globalState.game_input.window_h = PLT_gameFixedH;
  
  GME_Initialise();
+ Windows_globalState.is_game_intialised = 1;
  
  LARGE_INTEGER freq, start_t = {0}, end_t = {0};
  QueryPerformanceFrequency(&freq);
@@ -166,7 +168,10 @@ Windows_EventCallback(HWND window_handle,
  else if (WM_SIZE == message)
  {
   Windows_UpdateWindowSize(window_handle);
-  GME_UpdateAndRender(&Windows_globalState.game_input);
+  if (Windows_globalState.is_game_intialised)
+  {
+   GME_UpdateAndRender(&Windows_globalState.game_input);
+  }
   return 0;
  }
  else if (WM_KEYDOWN == message ||
@@ -174,126 +179,126 @@ Windows_EventCallback(HWND window_handle,
           WM_SYSKEYDOWN == message ||
           WM_SYSKEYUP == message)
  {
-  OS_Key key_input = 0;
+  PLT_Key key_input = 0;
   int is_down = !(l_param & (1 << 31));;
   
   if(w_param >= 'A' && w_param <= 'Z')
   {
-   key_input = OS_Key_a + (w_param - 'A');
+   key_input = PLT_Key_a + (w_param - 'A');
   }
   else if (w_param >= '0' && w_param <= '9')
   {
-   key_input = OS_Key_0 + (w_param - '0');
+   key_input = PLT_Key_0 + (w_param - '0');
   }
   else
   {
    if(w_param == VK_ESCAPE)
    {
-    key_input = OS_Key_esc;
+    key_input = PLT_Key_esc;
    }
    else if(w_param >= VK_F1 && w_param <= VK_F12)
    {
-    key_input = OS_Key_f1 + w_param - VK_F1;
+    key_input = PLT_Key_f1 + w_param - VK_F1;
    }
    else if(w_param == VK_OEM_3)
    {
-    key_input = OS_Key_graveAccent;
+    key_input = PLT_Key_graveAccent;
    }
    else if(w_param == VK_OEM_MINUS)
    {
-    key_input = OS_Key_minus;
+    key_input = PLT_Key_minus;
    }
    else if(w_param == VK_OEM_PLUS)
    {
-    key_input = OS_Key_equal;
+    key_input = PLT_Key_equal;
    }
    else if(w_param == VK_BACK)
    {
-    key_input = OS_Key_backspace;
+    key_input = PLT_Key_backspace;
    }
    else if(w_param == VK_TAB)
    {
-    key_input = OS_Key_tab;
+    key_input = PLT_Key_tab;
    }
    else if(w_param == VK_SPACE)
    {
-    key_input = OS_Key_space;
+    key_input = PLT_Key_space;
    }
    else if(w_param == VK_RETURN)
    {
-    key_input = OS_Key_enter;
+    key_input = PLT_Key_enter;
    }
    else if(w_param == VK_CONTROL)
    {
-    key_input = OS_Key_ctrl;
+    key_input = PLT_Key_ctrl;
    }
    else if(w_param == VK_SHIFT)
    {
-    key_input = OS_Key_shift;
+    key_input = PLT_Key_shift;
    }
    else if(w_param == VK_MENU)
    {
-    key_input = OS_Key_alt;
+    key_input = PLT_Key_alt;
    }
    else if(w_param == VK_UP)
    {
-    key_input = OS_Key_up;
+    key_input = PLT_Key_up;
    }
    else if(w_param == VK_LEFT)
    {
-    key_input = OS_Key_left;
+    key_input = PLT_Key_left;
    }
    else if(w_param == VK_DOWN)
    {
-    key_input = OS_Key_down;
+    key_input = PLT_Key_down;
    }
    else if(w_param == VK_RIGHT)
    {
-    key_input = OS_Key_right;
+    key_input = PLT_Key_right;
    }
    else if(w_param == VK_DELETE)
    {
-    key_input = OS_Key_delete;
+    key_input = PLT_Key_delete;
    }
    else if(w_param == VK_PRIOR)
    {
-    key_input = OS_Key_pageUp;
+    key_input = PLT_Key_pageUp;
    }
    else if(w_param == VK_NEXT)
    {
-    key_input = OS_Key_pageDown;
+    key_input = PLT_Key_pageDown;
    }
    else if(w_param == VK_HOME)
    {
-    key_input = OS_Key_home;
+    key_input = PLT_Key_home;
    }
    else if(w_param == VK_END)
    {
-    key_input = OS_Key_end;
+    key_input = PLT_Key_end;
    }
    else if(w_param == VK_OEM_2)
    {
-    key_input = OS_Key_forwardSlash;
+    key_input = PLT_Key_forwardSlash;
    }
    else if(w_param == VK_OEM_PERIOD)
    {
-    key_input = OS_Key_period;
+    key_input = PLT_Key_period;
    }
    else if(w_param == VK_OEM_COMMA)
    {
-    key_input = OS_Key_comma;
+    key_input = PLT_Key_comma;
    }
    else if(w_param == VK_OEM_7)
    {
-    key_input = OS_Key_quote;
+    key_input = PLT_Key_quote;
    }
    else if(w_param == VK_OEM_4)
    {
-    key_input = OS_Key_leftBracket;
+    key_input = PLT_Key_leftBracket;
    }
    else if(w_param == VK_OEM_6)
    {
-    key_input = OS_Key_rightBracket;
+    key_input = PLT_Key_rightBracket;
    }
   }
   
@@ -303,35 +308,35 @@ Windows_EventCallback(HWND window_handle,
  }
  else if (WM_LBUTTONDOWN == message)
  {
-  Windows_globalState.game_input.is_key_down[OS_Key_mouseLeft] = 1;
+  Windows_globalState.game_input.is_key_down[PLT_Key_mouseLeft] = 1;
  }
  else if (WM_LBUTTONUP == message)
  {
-  Windows_globalState.game_input.is_key_down[OS_Key_mouseLeft] = 0;
+  Windows_globalState.game_input.is_key_down[PLT_Key_mouseLeft] = 0;
  }
  else if (WM_MBUTTONDOWN == message)
  {
-  Windows_globalState.game_input.is_key_down[OS_Key_mouseMiddle] = 1;
+  Windows_globalState.game_input.is_key_down[PLT_Key_mouseMiddle] = 1;
  }
  else if (WM_MBUTTONUP == message)
  {
-  Windows_globalState.game_input.is_key_down[OS_Key_mouseMiddle] = 0;
+  Windows_globalState.game_input.is_key_down[PLT_Key_mouseMiddle] = 0;
  }
  else if (WM_RBUTTONDOWN == message)
  {
-  Windows_globalState.game_input.is_key_down[OS_Key_mouseRight] = 1;
+  Windows_globalState.game_input.is_key_down[PLT_Key_mouseRight] = 1;
  }
  else if (WM_RBUTTONUP == message)
  {
-  Windows_globalState.game_input.is_key_down[OS_Key_mouseRight] = 0;
+  Windows_globalState.game_input.is_key_down[PLT_Key_mouseRight] = 0;
  }
  else if (WM_MOUSEMOVE == message)
  {
   POINT mouse;
   GetCursorPos(&mouse);
   ScreenToClient(window_handle, &mouse);
-  Windows_globalState.game_input.mouse_x = OS_gameFixedW * ((float)mouse.x / (float)Windows_globalState.window_w);
-  Windows_globalState.game_input.mouse_y = OS_gameFixedH * ((float)mouse.y / (float)Windows_globalState.window_h);
+  Windows_globalState.game_input.mouse_x = PLT_gameFixedW * ((float)mouse.x / (float)Windows_globalState.window_w);
+  Windows_globalState.game_input.mouse_y = PLT_gameFixedH * ((float)mouse.y / (float)Windows_globalState.window_h);
  }
  else
  {

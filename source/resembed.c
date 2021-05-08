@@ -30,7 +30,7 @@ WINAPI WinMain(HINSTANCE instance_handle,
          "} RES_Texture;\n\n");
  
  fprintf(resources_f,
-         "#include \"../source/jam_game_os.c\"\n"
+         "#include \"../source/jam_game_platform.c\"\n"
          "#include \"../source/jam_game_resources.gen.c\"\n\n");
  
  int rc = 1;

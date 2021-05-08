@@ -1,3 +1,7 @@
+//
+// NOTE(tbt): simple RNG helpers
+//
+
 static int
 RNG_HashFromInt(int in)
 {
