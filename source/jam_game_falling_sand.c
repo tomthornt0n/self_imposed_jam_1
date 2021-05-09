@@ -25,11 +25,12 @@ typedef enum
 
 typedef struct
 {
- double accumulator;
  FLS_CellKind cells[PLT_gameFixedW * PLT_gameFixedH];
+ Pixel texture_buffer[PLT_gameFixedW * PLT_gameFixedH];
+ RES_Texture texture;
 } FLS_State;
 
-#define FLS_CellAt(_state, _x, _y) ((_state)->cells[PLT_GamePixelIndex(MAT_ClampI(_x, 0, PLT_gameFixedW - 1), MAT_ClampI(_y, 0, PLT_gameFixedH - 1))])
+#define FLS_CellAt(_state, _x, _y) ((_state)->cells[PLT_GamePixelIndex(MTH_ClampI(_x, 0, PLT_gameFixedW - 1), MTH_ClampI(_y, 0, PLT_gameFixedH - 1))])
 
 #define FLS_IsCellInBounds(_x, _y) ((_x) >= 0 && (_x) < PLT_gameFixedW && (_y) >= 0 && (_y) < PLT_gameFixedH)
 
@@ -95,9 +96,8 @@ FLS_SandGetColour(const FLS_State *state,
                   int x,
                   int y)
 {
- float scale = 0.9f;
  float b = 66.0f, g = 135.0f, r = 245.0f;
- return FSC_PerlinNoise(state, x, y, scale, b, g, r);
+ return FSC_PerlinNoise(state, x, y, b, g, r);
 }
 
 static Colour
@@ -116,9 +116,8 @@ FLS_StoneGetColour(const FLS_State *state,
                    int x,
                    int y)
 {
- float scale = 1.0f;
- float b = 56.0f, g = 55.0f, r = 55.0f;
- return FSC_PerlinNoise(state, x, y, scale, b, g, r);
+ float b = 66.0f, g = 65.0f, r = 65.0f;
+ return FSC_PerlinNoise(state, x, y, b, g, r);
 }
 
 static Colour
@@ -155,17 +154,11 @@ static Colour FLS_GetColour(const FLS_State *state,
                             int x,
                             int y)
 {
- if (FLS_IsCellInBounds(x, y))
+ FLS_GetColourCallback callback;
+ if (FLS_IsCellInBounds(x, y) &&
+     (callback = FLS_cellTable[FLS_CellAt(state, x, y)].get_colour))
  {
-  FLS_GetColourCallback callback = FLS_cellTable[FLS_CellAt(state, x, y)].get_colour;
-  if (callback)
-  {
-   return callback(state, x, y);
-  }
-  else
-  {
-   return (Colour){0};
-  }
+  return callback(state, x, y);
  }
  else
  {
@@ -236,11 +229,21 @@ FLS_SetCells(FLS_State *state,
 }
 
 static void
+FLS_StateMake(FLS_State *state)
+{
+ state->texture.buffer = state->texture_buffer;
+ state->texture.w = PLT_gameFixedW;
+ state->texture.h = PLT_gameFixedH;
+}
+
+static void
 FLS_StateFromTexture(FLS_State *state,
                      const RES_Texture *texture)
 {
- int max_x = MAT_MinI(texture->w, PLT_gameFixedW);
- int max_y = MAT_MinI(texture->h, PLT_gameFixedH);
+ FLS_StateMake(state);
+ 
+ int max_x = MTH_MinI(texture->w, PLT_gameFixedW);
+ int max_y = MTH_MinI(texture->h, PLT_gameFixedH);
  
  for (int x = 0;
       x < max_x;
@@ -284,117 +287,112 @@ static void
 FLS_Update(const PLT_GameInput *input,
            FLS_State *state)
 {
- double timestep = 0.01f;
+ int has_already_been_updated[PLT_gameFixedW * PLT_gameFixedH] = {0};
  
- state->accumulator += input->dt;
- 
- while (state->accumulator > timestep)
+ for (int y0 = 0;
+      y0 < PLT_gameFixedH;
+      y0 += 1)
  {
-  state->accumulator -= timestep;
-  
-  int has_already_been_updated[PLT_gameFixedW * PLT_gameFixedH] = {0};
-  
-  for (int y0 = 0;
-       y0 < PLT_gameFixedH;
-       y0 += 1)
+  for (int x0 = 0;
+       x0 < PLT_gameFixedW;
+       x0 += 1)
   {
-   for (int x0 = 0;
-        x0 < PLT_gameFixedW;
-        x0 += 1)
+   int x1 = x0, y1 = y0;
+   
+   if (has_already_been_updated[PLT_GamePixelIndex(x0, y0)]) { continue; }
+   
+   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_rise))
    {
-    int x1 = x0, y1 = y0;
-    
-    if (has_already_been_updated[PLT_GamePixelIndex(x0, y0)]) { continue; }
-    
-    if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_rise))
+    if (FLS_CellCanFallTo(state, x0, y0, x0, y0 - 1))
     {
-     if (FLS_CellCanFallTo(state, x0, y0, x0, y0 - 1))
-     {
-      y1 = y0 - 1;
-      goto move_cell;
-     }
-     else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 - 1))
-     {
-      if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 - 1) &&
-          RNG_RandIntNext(0, 2))
-      {
-       x1 = x0 + 1;
-       y1 = y0 - 1;
-      }
-      else
-      {
-       x1 = x0 - 1;
-       y1 = y0 - 1;
-      }
-      goto move_cell;
-     }
-     else if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 - 1))
+     y1 = y0 - 1;
+     goto move_cell;
+    }
+    else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 - 1))
+    {
+     if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 - 1) &&
+         RNG_RandIntNext(0, 2))
      {
       x1 = x0 + 1;
       y1 = y0 - 1;
-      goto move_cell;
      }
-    }
-    
-    if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fall))
-    {
-     if (FLS_CellCanFallTo(state, x0, y0, x0, y0 + 1))
-     {
-      y1 = y0 + 1;
-      goto move_cell;
-     }
-     else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 + 1))
-     {
-      if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1) &&
-          RNG_RandIntNext(0, 2))
-      {
-       x1 = x0 + 1;
-       y1 = y0 + 1;
-      }
-      else
-      {
-       x1 = x0 - 1;
-       y1 = y0 + 1;
-      }
-      goto move_cell;
-     }
-     else if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1))
-     {
-      x1 = x0 + 1;
-      y1 = y0 + 1;
-      goto move_cell;
-     }
-    }
-    
-    if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_spread))
-    {
-     if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0))
-     {
-      if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0) &&
-          RNG_RandIntNext(0, 2))
-      {
-       x1 = x0 - 1;
-      }
-      else
-      {
-       x1 = x0 + 1;
-      }
-      goto move_cell;
-     }
-     else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0))
+     else
      {
       x1 = x0 - 1;
-      goto move_cell;
+      y1 = y0 - 1;
      }
+     goto move_cell;
     }
-    
-    has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
-    
-    move_cell:
-    has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
-    has_already_been_updated[PLT_GamePixelIndex(x1, y1)] = 1;
-    FLS_CellSwap(state, x0, y0, x1, y1);
+    else if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 - 1))
+    {
+     x1 = x0 + 1;
+     y1 = y0 - 1;
+     goto move_cell;
+    }
    }
+   
+   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fall))
+   {
+    if (FLS_CellCanFallTo(state, x0, y0, x0, y0 + 1))
+    {
+     y1 = y0 + 1;
+     goto move_cell;
+    }
+    else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 + 1))
+    {
+     if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1) &&
+         RNG_RandIntNext(0, 2))
+     {
+      x1 = x0 + 1;
+      y1 = y0 + 1;
+     }
+     else
+     {
+      x1 = x0 - 1;
+      y1 = y0 + 1;
+     }
+     goto move_cell;
+    }
+    else if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1))
+    {
+     x1 = x0 + 1;
+     y1 = y0 + 1;
+     goto move_cell;
+    }
+   }
+   
+   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_spread))
+   {
+    if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0))
+    {
+     if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0) &&
+         RNG_RandIntNext(0, 2))
+     {
+      x1 = x0 - 1;
+     }
+     else
+     {
+      x1 = x0 + 1;
+     }
+     goto move_cell;
+    }
+    else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0))
+    {
+     x1 = x0 - 1;
+     goto move_cell;
+    }
+   }
+   
+   has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
+   state->texture.buffer[PLT_GamePixelIndex(x0, y0)] = FLS_GetColour(state, x0, y0);
+   continue;
+   
+   move_cell:
+   has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
+   has_already_been_updated[PLT_GamePixelIndex(x1, y1)] = 1;
+   FLS_CellSwap(state, x0, y0, x1, y1);
+   state->texture.buffer[PLT_GamePixelIndex(x0, y0)] = FLS_GetColour(state, x0, y0);
+   state->texture.buffer[PLT_GamePixelIndex(x1, y1)] = FLS_GetColour(state, x1, y1);
   }
  }
 }

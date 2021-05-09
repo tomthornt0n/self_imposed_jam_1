@@ -98,7 +98,7 @@ WINAPI WinMain(HINSTANCE instance_handle,
                                     NULL,
                                     instance_handle,
                                     NULL);
- ShowWindow(window_handle, SW_SHOW);
+ ShowWindow(window_handle, SW_SHOWMAXIMIZED);
  
  Windows_UpdateWindowSize(window_handle);
  

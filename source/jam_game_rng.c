@@ -57,9 +57,9 @@ RNG_Noise2DF_INTERNAL(float x,
  int t = RNG_Noise2DI_INTERNAL(x_int + 1, y_int);
  int u = RNG_Noise2DI_INTERNAL(x_int, y_int + 1);
  int v = RNG_Noise2DI_INTERNAL(x_int + 1, y_int + 1);
- float low = MAT_InterpolateSmoothF(s, t, x_frac);
- float high = MAT_InterpolateSmoothF(u, v, x_frac);
- return MAT_InterpolateSmoothF(low, high, y_frac);
+ float low = MTH_InterpolateSmoothF(s, t, x_frac);
+ float high = MTH_InterpolateSmoothF(u, v, x_frac);
+ return MTH_InterpolateSmoothF(low, high, y_frac);
 }
 
 static float

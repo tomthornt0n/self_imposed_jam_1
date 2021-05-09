@@ -7,10 +7,28 @@ enum
  FSC_lightPenetrationDepth = 10,
 };
 
-static Colour
-FSC_Darkness(float perlin)
+static float FSC_precomputedPerlin[PLT_gameFixedW * PLT_gameFixedH];
+static void
+FSC_PerlinPrecompute(void)
 {
- int noise = (MAT_AbsI(perlin) % 2) * 4;
+ for (int y = 0;
+      y < PLT_gameFixedH;
+      y += 1)
+ {
+  for (int x = 0;
+       x < PLT_gameFixedW;
+       x += 1)
+  {
+   FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)] = RNG_Perlin2D(x, y, 1.0f, 4);
+  }
+ }
+}
+
+static Colour
+FSC_Darkness(int x,
+             int y)
+{
+ int noise = (MTH_AbsI(FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)]) % 2) * 4;
  return (Colour){ noise * 2, noise, noise, 255 };
 }
 
@@ -18,7 +36,6 @@ static Colour
 FSC_PerlinNoise(const FLS_State *state,
                 int x,
                 int y,
-                float scale,
                 float base_b,
                 float base_g,
                 float base_r)
@@ -27,11 +44,11 @@ FSC_PerlinNoise(const FLS_State *state,
  float g = base_g / 255.0f;
  float r = base_r / 255.0f;
  
- float perlin = RNG_Perlin2D(x, y, 0.9f, 4);
+ float perlin = FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)];
  
- b = MAT_MinF(1.0f, b + (perlin * 0.00000002f));
- g = MAT_MinF(1.0f, g + (perlin * 0.00000002f));
- r = MAT_MinF(1.0f, r + (perlin * 0.00000002f));
+ b = MTH_MinF(1.0f, b + (perlin * 0.00000002f));
+ g = MTH_MinF(1.0f, g + (perlin * 0.00000002f));
+ r = MTH_MinF(1.0f, r + (perlin * 0.00000002f));
  
  Colour result = (Colour){ 255 * b, 255 * g, 255 * r, 255 };
  
@@ -53,7 +70,7 @@ FSC_PerlinNoise(const FLS_State *state,
   }
  }
  
- Colour darkness = FSC_Darkness(perlin);
+ Colour darkness = FSC_Darkness(x, y);
  unsigned char light_intensity = depth * (255 / FSC_lightPenetrationDepth);
  result.b = ((light_intensity * (result.b - darkness.b)) >> 8) + darkness.b;
  result.g = ((light_intensity * (result.g - darkness.g)) >> 8) + darkness.g;
@@ -89,11 +106,11 @@ FSC_Stratified(const FLS_State *state,
  }
  
  int noise = RNG_RandInt2D(x, y, -randomness, randomness);
- int i = MAT_MaxI(depth + noise, 0);
+ int i = MTH_MaxI(depth + noise, 0);
  
  if (i >= colour_count)
  {
-  return FSC_Darkness(noise);
+  return FSC_Darkness(x, y);
  }
  else
  {
@@ -114,13 +131,13 @@ static Colour FSC_Liquid(const FLS_State *state,
  int depth;
  for (depth = 0; FLS_CellKind_empty != FLS_CellAt(state, x, y - depth); depth += 1);
  
- int light_intensity = MAT_MinI(depth * (255 / FSC_lightPenetrationDepth), 255);
+ int light_intensity = MTH_MinI(depth * (255 / FSC_lightPenetrationDepth), 255);
  result.b = ((light_intensity * (result.b - light_colour->b)) >> 8) + light_colour->b;
  result.g = ((light_intensity * (result.g - light_colour->g)) >> 8) + light_colour->g;
  result.r = ((light_intensity * (result.r - light_colour->r)) >> 8) + light_colour->r;
  result.a = ((light_intensity * (result.a - light_colour->a)) >> 8) + light_colour->a;
  
- result.a = MAT_MinI(result.a + depth / (int)(1.0f / depth_gradient_amount), 255);
+ result.a = MTH_MinI(result.a + depth / (int)(1.0f / depth_gradient_amount), 255);
  
  return result;
 }
