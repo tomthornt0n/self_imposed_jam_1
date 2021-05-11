@@ -2,6 +2,8 @@
 // NOTE(tbt): interface between platform layer and game
 //
 
+#define ArrayCount(_a) (sizeof(_a) / sizeof(_a[0]))
+
 struct Colour
 {
  unsigned char b;
@@ -12,7 +14,7 @@ struct Colour
 typedef struct Colour Colour;
 typedef struct Colour Pixel;
 
-#define ColLit(_b, _g, _r) ((Colour[]){ (Colour){ _b, _g, _r, 255 } })
+#define ColLit(_b, _g, _r, _a) ((Colour[]){ (Colour){ _b, _g, _r, _a } })
 
 enum PLT_Constants
 {
@@ -23,6 +25,7 @@ enum PLT_Constants
 static const char *PLT_windowTitle = "Falling Sand";
 
 #define PLT_GamePixelIndex(_x, _y) ((_x) + (_y) * PLT_gameFixedW)
+#define PLT_GameHasPixel(_x, _y) ((_x) >= 0 && (_x) < PLT_gameFixedW && (_y) >= 0 && (_y) < PLT_gameFixedH)
 
 typedef enum
 {

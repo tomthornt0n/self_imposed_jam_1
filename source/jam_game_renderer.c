@@ -7,7 +7,7 @@ RDR_SetPixel(const PLT_GameInput *input,
              size_t x, size_t y,
              const Pixel *pixel)
 {
- if (pixel->a > 0)
+ if (pixel->a > 0 && PLT_GameHasPixel(x, y))
  {
   if (pixel->a == 255)
   {

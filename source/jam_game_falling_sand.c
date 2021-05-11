@@ -17,10 +17,11 @@ typedef enum
 typedef unsigned int FLS_CellFlags;
 typedef enum
 {
- FLS_CellFlags_fall   = 1 << 0,
- FLS_CellFlags_spread = 1 << 1,
- FLS_CellFlags_rise   = 1 << 2,
- FLS_CellFlags_solid  = 1 << 3,
+ FLS_CellFlags_fall         = 1 << 0,
+ FLS_CellFlags_spread       = 1 << 1,
+ FLS_CellFlags_rise         = 1 << 2,
+ FLS_CellFlags_solid        = 1 << 3,
+ FLS_CellFlags_destructable = 1 << 4,
 } FLS_CellFlags_ENUM;
 
 typedef struct
@@ -32,11 +33,7 @@ typedef struct
 
 #define FLS_CellAt(_state, _x, _y) ((_state)->cells[PLT_GamePixelIndex(MTH_ClampI(_x, 0, PLT_gameFixedW - 1), MTH_ClampI(_y, 0, PLT_gameFixedH - 1))])
 
-#define FLS_IsCellInBounds(_x, _y) ((_x) >= 0 && (_x) < PLT_gameFixedW && (_y) >= 0 && (_y) < PLT_gameFixedH)
-
-#define FLS_CellHasFlag(_cell, _flags) (FLS_cellTable[_cell].flags & (_flags))
-
-#define FLS_CellAtHasFlag(_state, _x, _y, _flags) (FLS_CellHasFlag(FLS_CellAt(_state, _x, _y), _flags))
+#define FLS_IsCellInBounds(_x, _y) PLT_GameHasPixel(_x, _y)
 
 typedef Colour ( *FLS_GetColourCallback) (const FLS_State *state, int x, int y);
 
@@ -56,7 +53,7 @@ struct FLS_Cell
  [FLS_CellKind_sand] =
  {
   .get_colour = FLS_SandGetColour,
-  .flags = FLS_CellFlags_fall | FLS_CellFlags_solid,
+  .flags = FLS_CellFlags_fall | FLS_CellFlags_solid | FLS_CellFlags_destructable,
   .density = 2,
  },
  
@@ -74,20 +71,38 @@ struct FLS_Cell
   .density = 999,
  },
  
- [FLS_CellKind_gas] =
- {
-  .get_colour = FLS_GasGetColour,
-  .flags = FLS_CellFlags_spread | FLS_CellFlags_rise,
-  .density = -1,
- },
- 
  [FLS_CellKind_dirt] = 
  {
   .get_colour = FLS_DirtGetColour,
-  .flags = FLS_CellFlags_solid,
+  .flags = FLS_CellFlags_solid | FLS_CellFlags_destructable,
   .density = 999,
  },
 };
+
+static int
+FLS_CellHasFlag(FLS_CellKind cell,
+                FLS_CellFlags flags)
+{
+ return (FLS_cellTable[cell].flags & (flags));
+}
+
+
+static int
+FLS_CellAtHasFlag(const FLS_State *state,
+                  int x, int y,
+                  FLS_CellFlags flags)
+{
+ if (FLS_IsCellInBounds(x, y))
+ {
+  return FLS_CellHasFlag(FLS_CellAt(state, x, y), flags);
+ }
+ else
+ {
+  FLS_CellFlags dummy_flags = FLS_CellFlags_solid;
+  return (dummy_flags & flags);
+ }
+ 
+}
 
 #include "jam_game_falling_sand_colours.c"
 

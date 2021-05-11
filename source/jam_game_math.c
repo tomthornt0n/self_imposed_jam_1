@@ -109,3 +109,15 @@ MTH_AbsF(float a)
  u_from_f.f = a;
  u_from_f.u &= ~(1 << 31);
 }
+
+static float
+MTH_ReciprocalSqrtF(float a)
+{
+ union { float f; long i; } i_from_f;
+ 
+ i_from_f.f = a;
+ i_from_f.i = 0x5f375a86 - (i_from_f.i >> 1);
+ i_from_f.f *= 1.5f - (i_from_f.f * 0.5f * i_from_f.f * i_from_f.f);
+ 
+ return i_from_f.f;
+}

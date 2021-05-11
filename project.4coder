@@ -56,6 +56,19 @@ command_list =
             { "echo Linux run command not implemented for 4coder project.", .os = "linux" },
         },
     },
+
+    {
+        .name = "build_and_run",
+        .out = "*compilation*",
+        .footer_panel = true,
+        .save_dirty_files = true,
+        .cursor_at_end = false,
+        .cmd =
+        {
+            { ".\windows_build.bat && cd build && .\jam_game.exe", .os = "win" },
+            { "echo Linux run command not implemented for 4coder project.", .os = "linux" },
+        },
+    },
     
     {
         .name = "build_resources",
@@ -65,7 +78,7 @@ command_list =
         .cursor_at_end = false,
         .cmd =
         {
-            { ".\windows_build_resources.bat", .os = "win" },
+            { ".\windows_build_resources.bat && .\windows_build", .os = "win" },
             { "echo Linux build assets command not implemented for 4coder project.", .os = "linux" },
         },
     },
@@ -87,4 +100,5 @@ command_list =
 fkey_command[1] = "build";
 fkey_command[2] = "run";
 fkey_command[3] = "build_resources";
+fkey_command[5] = "build_and_run";
 fkey_command[12] = "build_resource_packer";
