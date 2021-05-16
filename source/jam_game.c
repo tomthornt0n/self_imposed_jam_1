@@ -35,7 +35,8 @@ GME_Initialise(void)
  RES_Texture level_1_texture;
  RES_Level1TextureGet(&level_1_texture);
  FLS_StateFromTexture(&GME_fallingSandState, &level_1_texture);
- ETT_PlayerMake(344, 175 - 128);
+ ETT_PlayerMake(344, 47);
+ ETT_GolemMake(225, 47);
 }
 
 void
@@ -44,7 +45,7 @@ GME_UpdateAndRender(const PLT_GameInput *input)
  static double accumulator = 0.0;
  
  accumulator += input->dt;
- accumulator = MTH_MinF(accumulator, 0.2);
+ accumulator = MTH_MinF(accumulator, 0.1);
  while (accumulator > GME_timestep)
  {
   accumulator -= GME_timestep;
@@ -53,9 +54,10 @@ GME_UpdateAndRender(const PLT_GameInput *input)
   ETT_Update(input, &GME_fallingSandState);
  }
  
- RDR_DrawTexture(input, &GME_backgroundTexture, 0, 0);
+ RDR_DrawSubTexture(input, &GME_backgroundTexture, RectLit(0, 0, GME_backgroundTexture.w, GME_backgroundTexture.h), 0, 0, RDR_DrawSubTextureFlags_isBg);
  ETT_Render(input, accumulator);
  RDR_DrawTexture(input, &GME_fallingSandState.texture, 0, 0);
+ RDR_DrawGodRays(input, 16);
  
  char fps_str[32];
  stbsp_snprintf(fps_str, sizeof(fps_str), "%fms (%f fps)", input->dt * 1000, 1.0 / input->dt);

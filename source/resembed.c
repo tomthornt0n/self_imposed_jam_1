@@ -26,7 +26,7 @@ WINAPI WinMain(HINSTANCE instance_handle,
          "{\n"
          " size_t w;\n"
          " size_t h;\n"
-         " Pixel *buffer;\n"
+         " const Pixel *buffer;\n"
          "} RES_Texture;\n\n");
  
  fprintf(resources_f,

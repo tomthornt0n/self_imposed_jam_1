@@ -5,13 +5,17 @@
 static inline void
 RDR_SetPixel(const PLT_GameInput *input,
              size_t x, size_t y,
-             const Pixel *pixel)
+             const Pixel *pixel,
+             int is_bg)
 {
  if (pixel->a > 0 && PLT_GameHasPixel(x, y))
  {
+  int a = !is_bg * 255;
+  
   if (pixel->a == 255)
   {
    input->pixels[PLT_GamePixelIndex(x, y)] = *pixel;
+   input->pixels[PLT_GamePixelIndex(x, y)].a = a;
   }
   else
   {
@@ -21,7 +25,7 @@ RDR_SetPixel(const PLT_GameInput *input,
    input->pixels[PLT_GamePixelIndex(x, y)].b = ((src_alpha * (current.b - pixel->b)) >> 8) + pixel->b;
    input->pixels[PLT_GamePixelIndex(x, y)].g = ((src_alpha * (current.g - pixel->g)) >> 8) + pixel->g;
    input->pixels[PLT_GamePixelIndex(x, y)].r = ((src_alpha * (current.r - pixel->r)) >> 8) + pixel->r;
-   input->pixels[PLT_GamePixelIndex(x, y)].a = 255;
+   input->pixels[PLT_GamePixelIndex(x, y)].a = a;
   }
  }
 }
@@ -45,32 +49,64 @@ RDR_DrawRectangleFill(const PLT_GameInput *input,
        x < rect->x1 && x < input->window_w;
        x += 1)
   {
-   RDR_SetPixel(input, x, y, colour);
+   RDR_SetPixel(input, x, y, colour, 0);
   }
  }
 }
 
 typedef Rect RDR_SubTexture;
 
+typedef enum
+{
+ RDR_DrawSubTextureFlags_hFlip = 1 << 0,
+ RDR_DrawSubTextureFlags_vFlip = 1 << 1,
+ RDR_DrawSubTextureFlags_isBg  = 1 << 2,
+} RDR_DrawSubTextureFlags;
+
 static void
 RDR_DrawSubTexture(const PLT_GameInput *input,
                    const RES_Texture *texture,
                    const RDR_SubTexture *sub_texture,
                    int x,
-                   int y)
+                   int y,
+                   RDR_DrawSubTextureFlags flags)
 {
- for (int y0 = sub_texture->y0;
-      y0 < sub_texture->y1;
+ int sub_texture_w = sub_texture->x1 - sub_texture->x0;
+ int sub_texture_h = sub_texture->y1 - sub_texture->y0;
+ 
+ for (int y0 = 0;
+      y0 < sub_texture_h;
       y0 += 1)
  {
-  for (int x0 = sub_texture->x0;
-       x0 < sub_texture->x1;
+  for (int x0 = 0;
+       x0 < sub_texture_w;
        x0 += 1)
   {
+   int sample_x;
+   int sample_y;
+   if (flags & RDR_DrawSubTextureFlags_vFlip)
+   {
+    sample_x = sub_texture->x1 - x0 - 1;
+   }
+   else
+   {
+    sample_x = sub_texture->x0 + x0;
+   }
+   
+   if (flags & RDR_DrawSubTextureFlags_hFlip)
+   {
+    sample_y = sub_texture->y1 - y0 - 1;
+   }
+   else
+   {
+    sample_y = sub_texture->y0 + y0;
+   }
+   
    RDR_SetPixel(input,
-                x + x0 - sub_texture->x0,
-                y + y0 - sub_texture->y0,
-                &texture->buffer[x0 + y0 * texture->w]);
+                x + x0,
+                y + y0,
+                &texture->buffer[sample_x + sample_y * texture->w],
+                flags & RDR_DrawSubTextureFlags_isBg);
   }
  }
 }
@@ -81,7 +117,7 @@ RDR_DrawTexture(const PLT_GameInput *input,
                 int x,
                 int y)
 {
- RDR_DrawSubTexture(input, texture, RectLit(0, 0, texture->w, texture->h), x, y);
+ RDR_DrawSubTexture(input, texture, RectLit(0, 0, texture->w, texture->h), x, y, 0);
 }
 
 static unsigned char RDR_bitmapFont[128][8] =
@@ -251,6 +287,33 @@ RDR_DrawString(const PLT_GameInput *input,
     }
    }
    x += 8;
+  }
+ }
+}
+
+static void
+RDR_DrawGodRays(const PLT_GameInput *input,
+                int amount)
+{
+ for (int i = 0;
+      i < PLT_gameFixedW * PLT_gameFixedH;
+      i += 1)
+ {
+  if (input->pixels[i].a)
+  {
+   int depth = 0;
+   for (int j = i;
+        input->pixels[j].a;
+        j -= PLT_gameFixedW + 1)
+   {
+    depth += 1;
+   }
+   
+   int light = MTH_MaxI(amount - depth, 0);
+   
+   input->pixels[i].b = MTH_ClampI(input->pixels[i].b + light, 0, 255);
+   input->pixels[i].g = MTH_ClampI(input->pixels[i].g + light, 0, 255);
+   input->pixels[i].r = MTH_ClampI(input->pixels[i].r + light, 0, 255);
   }
  }
 }

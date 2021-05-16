@@ -74,7 +74,7 @@ struct FLS_Cell
  [FLS_CellKind_dirt] = 
  {
   .get_colour = FLS_DirtGetColour,
-  .flags = FLS_CellFlags_solid | FLS_CellFlags_destructable,
+  .flags = FLS_CellFlags_solid | FLS_CellFlags_destructable | FLS_CellFlags_fall,
   .density = 999,
  },
 };
@@ -111,7 +111,7 @@ FLS_SandGetColour(const FLS_State *state,
                   int x,
                   int y)
 {
- float b = 66.0f, g = 135.0f, r = 245.0f;
+ float b = 69.0f, g = 138.0f, r = 238.0f;
  return FSC_PerlinNoise(state, x, y, b, g, r);
 }
 
@@ -304,6 +304,8 @@ FLS_Update(const PLT_GameInput *input,
 {
  int has_already_been_updated[PLT_gameFixedW * PLT_gameFixedH] = {0};
  
+ Pixel *pixel_buffer = (Pixel *)state->texture.buffer;
+ 
  for (int y0 = 0;
       y0 < PLT_gameFixedH;
       y0 += 1)
@@ -399,15 +401,15 @@ FLS_Update(const PLT_GameInput *input,
    }
    
    has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
-   state->texture.buffer[PLT_GamePixelIndex(x0, y0)] = FLS_GetColour(state, x0, y0);
+   pixel_buffer[PLT_GamePixelIndex(x0, y0)] = FLS_GetColour(state, x0, y0);
    continue;
    
    move_cell:
    has_already_been_updated[PLT_GamePixelIndex(x0, y0)] = 1;
    has_already_been_updated[PLT_GamePixelIndex(x1, y1)] = 1;
    FLS_CellSwap(state, x0, y0, x1, y1);
-   state->texture.buffer[PLT_GamePixelIndex(x0, y0)] = FLS_GetColour(state, x0, y0);
-   state->texture.buffer[PLT_GamePixelIndex(x1, y1)] = FLS_GetColour(state, x1, y1);
+   pixel_buffer[PLT_GamePixelIndex(x0, y0)] = FLS_GetColour(state, x0, y0);
+   pixel_buffer[PLT_GamePixelIndex(x1, y1)] = FLS_GetColour(state, x1, y1);
   }
  }
 }

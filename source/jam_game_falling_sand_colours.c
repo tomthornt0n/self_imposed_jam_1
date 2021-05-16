@@ -28,8 +28,8 @@ static Colour
 FSC_Darkness(int x,
              int y)
 {
- int noise = (MTH_AbsI(FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)]) % 2) * 4;
- return (Colour){ noise * 2, noise, noise, 255 };
+ int noise = (MTH_AbsI(FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)]) % 2);
+ return (Colour){ noise * 8, noise * 4, noise * 4, 255 };
 }
 
 static Colour
