@@ -18,6 +18,7 @@ typedef struct Colour Pixel;
 
 enum PLT_Constants
 {
+ // NOTE(tbt): game runs at fixed resolution - gets stretched by platform layer
  PLT_gameFixedW = 480,
  PLT_gameFixedH = 270,
 };

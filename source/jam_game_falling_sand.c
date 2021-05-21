@@ -17,11 +17,12 @@ typedef enum
 typedef unsigned int FLS_CellFlags;
 typedef enum
 {
- FLS_CellFlags_fall         = 1 << 0,
- FLS_CellFlags_spread       = 1 << 1,
- FLS_CellFlags_rise         = 1 << 2,
- FLS_CellFlags_solid        = 1 << 3,
- FLS_CellFlags_destructable = 1 << 4,
+ FLS_CellFlags_fallVertical   = 1 << 0,
+ FLS_CellFlags_fallDiagonal   = 1 << 1,
+ FLS_CellFlags_fallHorizontal = 1 << 2,
+ FLS_CellFlags_rise           = 1 << 3,
+ FLS_CellFlags_solid          = 1 << 4,
+ FLS_CellFlags_destructable   = 1 << 5,
 } FLS_CellFlags_ENUM;
 
 typedef struct
@@ -53,14 +54,14 @@ struct FLS_Cell
  [FLS_CellKind_sand] =
  {
   .get_colour = FLS_SandGetColour,
-  .flags = FLS_CellFlags_fall | FLS_CellFlags_solid | FLS_CellFlags_destructable,
+  .flags = FLS_CellFlags_fallVertical | FLS_CellFlags_fallDiagonal | FLS_CellFlags_solid | FLS_CellFlags_destructable,
   .density = 2,
  },
  
  [FLS_CellKind_water] =
  {
   .get_colour = FLS_WaterGetColour,
-  .flags = FLS_CellFlags_fall | FLS_CellFlags_spread,
+  .flags = FLS_CellFlags_fallVertical | FLS_CellFlags_fallDiagonal | FLS_CellFlags_fallHorizontal,
   .density = 1,
  },
  
@@ -74,7 +75,7 @@ struct FLS_Cell
  [FLS_CellKind_dirt] = 
  {
   .get_colour = FLS_DirtGetColour,
-  .flags = FLS_CellFlags_solid | FLS_CellFlags_destructable | FLS_CellFlags_fall,
+  .flags = FLS_CellFlags_fallVertical | FLS_CellFlags_solid | FLS_CellFlags_destructable,
   .density = 999,
  },
 };
@@ -348,14 +349,18 @@ FLS_Update(const PLT_GameInput *input,
     }
    }
    
-   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fall))
+   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fallVertical))
    {
     if (FLS_CellCanFallTo(state, x0, y0, x0, y0 + 1))
     {
      y1 = y0 + 1;
      goto move_cell;
     }
-    else if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 + 1))
+   }
+   
+   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fallDiagonal))
+   {
+    if (FLS_CellCanFallTo(state, x0, y0, x0 - 1, y0 + 1))
     {
      if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0 + 1) &&
          RNG_RandIntNext(0, 2))
@@ -378,7 +383,7 @@ FLS_Update(const PLT_GameInput *input,
     }
    }
    
-   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_spread))
+   if (FLS_CellAtHasFlag(state, x0, y0, FLS_CellFlags_fallHorizontal))
    {
     if (FLS_CellCanFallTo(state, x0, y0, x0 + 1, y0))
     {

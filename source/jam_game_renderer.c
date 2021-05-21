@@ -10,7 +10,7 @@ RDR_SetPixel(const PLT_GameInput *input,
 {
  if (pixel->a > 0 && PLT_GameHasPixel(x, y))
  {
-  int a = !is_bg * 255;
+  int a = !!is_bg;
   
   if (pixel->a == 255)
   {
@@ -292,28 +292,97 @@ RDR_DrawString(const PLT_GameInput *input,
 }
 
 static void
-RDR_DrawGodRays(const PLT_GameInput *input,
+RDR_DrawShadows(const PLT_GameInput *input,
                 int amount)
 {
  for (int i = 0;
       i < PLT_gameFixedW * PLT_gameFixedH;
       i += 1)
  {
-  if (input->pixels[i].a)
+  if (input->pixels[i].a) { continue; } // NOTE(tbt): don't draw shadows against the background
+  
+  int sample_cap = amount * 2;
+  int sample_count = 0;
+  
+  
+  int offset;
+  int sector = (i % PLT_gameFixedW) / (PLT_gameFixedW / 3);
+  if (sector == 0)
   {
-   int depth = 0;
-   for (int j = i;
-        input->pixels[j].a;
-        j -= PLT_gameFixedW + 1)
-   {
-    depth += 1;
-   }
+   offset = -PLT_gameFixedW + 1;
+  }
+  else if (sector == 1)
+  {
+   offset = -PLT_gameFixedW;
+  }
+  else if (sector == 2)
+  {
+   offset = -PLT_gameFixedW - 1;
+  }
+  
+  int light = amount;
+  for (int j = i;
+       j > 0 && light > 0;
+       j += offset)
+  {
+   if (sample_count > sample_cap) { break; }
+   light -= !input->pixels[j].a;
+   sample_count += 1;
+  }
+  
+  input->pixels[i].b = MTH_ClampI(input->pixels[i].b + light, 0, 255);
+  input->pixels[i].g = MTH_ClampI(input->pixels[i].g + light, 0, 255);
+  input->pixels[i].r = MTH_ClampI(input->pixels[i].r + light, 0, 255);
+ }
+}
+
+static void
+RDR_DrawGodRays_EXPERIMENT(const PLT_GameInput *input,
+                           int amount)
+{
+ int buffer[PLT_gameFixedW * PLT_gameFixedH] = {0};
+ 
+ for (int i = 0;
+      i < PLT_gameFixedW * PLT_gameFixedH;
+      i += 1)
+ {
+  buffer[i] = input->pixels[i].a;
+ }
+ 
+ for (int y = 1;
+      y < PLT_gameFixedH;
+      y += 1)
+ {
+  for (int x = 1;
+       x < PLT_gameFixedW / 2;
+       x += 1)
+  {
+   buffer[PLT_GamePixelIndex(x, y)] += buffer[PLT_GamePixelIndex(x + 1, y - 1)];
+  }
+  
+  for (int x = PLT_gameFixedW / 2;
+       x < PLT_gameFixedW;
+       x += 1)
+  {
+   buffer[PLT_GamePixelIndex(x, y)] += buffer[PLT_GamePixelIndex(x - 1, y - 1)];
+  }
+ }
+ 
+ for (int y = 0;
+      y < PLT_gameFixedH;
+      y += 1)
+ {
+  for (int x = 0;
+       x < PLT_gameFixedW;
+       x += 1)
+  {
+   int i = PLT_GamePixelIndex(x, y);
    
-   int light = MTH_MaxI(amount - depth, 0);
-   
-   input->pixels[i].b = MTH_ClampI(input->pixels[i].b + light, 0, 255);
-   input->pixels[i].g = MTH_ClampI(input->pixels[i].g + light, 0, 255);
-   input->pixels[i].r = MTH_ClampI(input->pixels[i].r + light, 0, 255);
+   buffer[i] -= y;
+   buffer[i] = MTH_MinI(buffer[i], amount);
+   input->pixels[i].b = MTH_ClampI(input->pixels[i].b + buffer[i], 0, 255);
+   input->pixels[i].g = MTH_ClampI(input->pixels[i].g + buffer[i], 0, 255);
+   input->pixels[i].r = MTH_ClampI(input->pixels[i].r + buffer[i], 0, 255);
   }
  }
 }

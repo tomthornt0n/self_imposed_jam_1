@@ -1,13 +1,13 @@
 enum ETT_Constants
 {
  ETT_maxEntities = 512,
- ETT_animationFramesMax = 16,
+ ETT_maxAnimationFrames = 16,
  
  ETT_gravityStrength = 1,
- ETT_maxWalkableIncline = 2,
- ETT_playerSpeed = 2,
+ 
  ETT_playerJumpPower = 2,
- ETT_playerJumpMax = 5,
+ ETT_playerJumpMax = 7,
+ 
  ETT_healthBarWidth = 36,
 };
 
@@ -18,26 +18,28 @@ typedef enum
  ETT_Flags_drawHealthBar            = 1 <<  1,
  
  ETT_Flags_isPlayer                 = 1 <<  2,
- ETT_Flags_isGolem                  = 1 <<  3,
+ ETT_Flags_isMonster                = 1 <<  3,
  
- ETT_Flags_simpleMovement           = 1 <<  4,
- ETT_Flags_mobMovement              = 1 <<  5,
- ETT_Flags_gravity                  = 1 <<  6,
+ ETT_Flags_humanoidAI               = 1 <<  4,
  
- ETT_Flags_destructive              = 1 <<  7,
+ ETT_Flags_simpleMovement           = 1 <<  5,
+ ETT_Flags_mobMovement              = 1 <<  6,
+ ETT_Flags_gravity                  = 1 <<  7,
  
- ETT_Flags_removeOnContact          = 1 <<  8,
- ETT_Flags_removeAfterTimer         = 1 <<  9,
- ETT_Flags_removeWhenHealthDepleted = 1 << 10,
+ ETT_Flags_destructive              = 1 <<  8,
  
- ETT_Flags_playAnimation            = 1 << 11,
- ETT_Flags_walkAnimation            = 1 << 12,
+ ETT_Flags_removeOnContact          = 1 <<  9,
+ ETT_Flags_removeAfterTimer         = 1 << 10,
+ ETT_Flags_removeWhenHealthDepleted = 1 << 11,
  
- ETT_Flags_dealDamage               = 1 << 13,
- ETT_Flags_takeDamage               = 1 << 14,
- ETT_Flags_knockBack                = 1 << 15,
+ ETT_Flags_playAnimation            = 1 << 12,
+ ETT_Flags_walkAnimation            = 1 << 13,
  
- ETT_Flags_fireProjectile           = 1 << 16,
+ ETT_Flags_dealDamage               = 1 << 14,
+ ETT_Flags_takeDamage               = 1 << 15,
+ ETT_Flags_knockBack                = 1 << 16,
+ 
+ ETT_Flags_fireProjectile           = 1 << 17,
 } ETT_Flags_ENUM;
 
 typedef enum
@@ -54,15 +56,22 @@ typedef enum
  ETT_State_removed,
 } ETT_State;
 
-typedef struct ETT_e ETT_e;
-struct ETT_e
+typedef unsigned char ETT_CollisionMask;
+typedef enum
 {
- ETT_e *next;
- ETT_e *next_free;
- ETT_e *parent; // NOTE(tbt): weird pseudo-tree like thing where some entities need to encode a parent-child like relationship e.g. player - projectile, but it is definetly not actually a tree
+ ETT_CollisionMask_player   = 1 << 0,
+ ETT_CollisionMask_monsters = 1 << 1,
+} ETT_CollisionMask_ENUM;
+
+typedef struct ETT_Entity ETT_Entity;
+struct ETT_Entity
+{
+ ETT_Entity *next;
+ ETT_Entity *next_free;
  
  ETT_Flags flags;
  ETT_State state;
+ ETT_CollisionMask collision_mask;
  
  float timer;
  
@@ -77,16 +86,20 @@ struct ETT_e
  
  RES_Texture texture;
  int is_v_flip;
- RDR_SubTexture sub_texture[ETT_animationFramesMax];
+ RDR_SubTexture sub_texture[ETT_maxAnimationFrames];
  size_t animation_loop_begin;
  size_t animation_loop_end;
  size_t animation_frame;
  int animation_frame_time;
  
+ int speed;
  int jump_charge;
+ int max_walkable_incline;
  
  ETT_ProjectileKind projectile_kind;
  float fire_rate;
+ 
+ int chase_range;
  
  int health;
  int max_health;
@@ -94,27 +107,28 @@ struct ETT_e
 
 static struct
 {
- ETT_e buffer[ETT_maxEntities];
- size_t i;
- ETT_e *free_list;
-} ETT_arena = {0};
+ // NOTE(tbt): hybrid pool/arena allocator
+ ETT_Entity pool[ETT_maxEntities];
+ size_t arena_index;
+ ETT_Entity *free_list;
+ ETT_Entity *active_list;
+} ETT_entities = {0};
 
-static ETT_e *ETT_list = NULL;
 
-static ETT_e *
+static ETT_Entity *
 ETT_Push(void)
 {
- ETT_e *result = NULL;
+ ETT_Entity *result = NULL;
  
- if (ETT_arena.free_list)
+ if (ETT_entities.free_list)
  {
-  result = ETT_arena.free_list;
-  ETT_arena.free_list = ETT_arena.free_list->next_free;
+  result = ETT_entities.free_list;
+  ETT_entities.free_list = ETT_entities.free_list->next_free;
  }
- else if (ETT_arena.i < ETT_maxEntities - 1)
+ else if (ETT_entities.arena_index < ETT_maxEntities - 1)
  {
-  result = &ETT_arena.buffer[ETT_arena.i];
-  ETT_arena.i += 1;
+  result = &ETT_entities.pool[ETT_entities.arena_index];
+  ETT_entities.arena_index += 1;
  }
  else
  {
@@ -122,8 +136,8 @@ ETT_Push(void)
  }
  
  memset(result, 0, sizeof(*result));
- result->next = ETT_list;
- ETT_list = result;
+ result->next = ETT_entities.active_list;
+ ETT_entities.active_list = result;
  
  return result;
 }
@@ -131,14 +145,13 @@ ETT_Push(void)
 static void
 ETT_FreeAll(void)
 {
- memset(&ETT_arena, 0, sizeof(ETT_arena));
- ETT_list = NULL;
+ memset(&ETT_entities, 0, sizeof(ETT_entities));
 }
 
-static ETT_e *
+static ETT_Entity *
 ETT_PlayerMake(int x, int y)
 {
- ETT_e *player = ETT_Push();
+ ETT_Entity *player = ETT_Push();
  
  if (player)
  {
@@ -154,6 +167,8 @@ ETT_PlayerMake(int x, int y)
   player->y = y;
   player->collision_w = 16;
   player->collision_h = 33;
+  player->collision_mask = ETT_CollisionMask_player;
+  player->max_walkable_incline = 2;
   RES_SpritesheetTextureGet(&player->texture);
   player->animation_loop_begin = 0;
   player->animation_loop_end = 3;
@@ -166,19 +181,55 @@ ETT_PlayerMake(int x, int y)
   player->projectile_kind = ETT_ProjectileKind_player;
   player->health = 512;
   player->max_health = 512;
+  player->speed = 2;
  }
  
  return player;
 }
 
-static ETT_e *
+static void
+ETT_SmokeParticlesMake(int count,
+                       int x, int y)
+{
+ for (int i = 0;
+      i < count;
+      i += 1)
+ {
+  ETT_Entity *particle = ETT_Push();
+  
+  const int speed = 1;
+  const float life = 0.8f;
+  
+  if (particle)
+  {
+   particle->flags |= ETT_Flags_drawSubTexture;
+   particle->flags |= ETT_Flags_simpleMovement;
+   particle->flags |= ETT_Flags_removeAfterTimer;
+   particle->x = x;
+   particle->y = y;
+   particle->collision_w = 16;
+   particle->collision_h = 16;
+   RES_SpritesheetTextureGet(&particle->texture);
+   particle->sub_texture[0] = (RDR_SubTexture){ 64, 16, 80, 32 };
+   particle->vel_x = RNG_RandIntNext(-speed, speed);
+   particle->vel_y = RNG_RandIntNext(-speed, speed);
+   particle->timer = life * (float)RNG_RandIntNext(0, 1000) / 1000;
+  }
+ }
+}
+
+static ETT_Entity *
 ETT_GolemMake(int x, int y)
 {
- ETT_e *golem = ETT_Push();
+ ETT_Entity *golem = ETT_Push();
  
  if (golem)
  {
-  golem->flags |= ETT_Flags_isGolem;
+  ETT_SmokeParticlesMake(64, x, y);
+  GME_monsterCount += 1;
+  
+  golem->flags |= ETT_Flags_isMonster;
+  golem->flags |= ETT_Flags_humanoidAI;
   golem->flags |= ETT_Flags_drawSubTexture;
   golem->flags |= ETT_Flags_mobMovement;
   golem->flags |= ETT_Flags_gravity;
@@ -191,6 +242,8 @@ ETT_GolemMake(int x, int y)
   golem->y = y;
   golem->collision_w = 16;
   golem->collision_h = 33;
+  golem->collision_mask = ETT_CollisionMask_monsters;
+  golem->max_walkable_incline = 6;
   RES_SpritesheetTextureGet(&golem->texture);
   golem->animation_loop_begin = 0;
   golem->animation_loop_end = 3;
@@ -203,20 +256,22 @@ ETT_GolemMake(int x, int y)
   golem->projectile_kind = ETT_ProjectileKind_golem;
   golem->max_health = 255;
   golem->health = 255;
+  golem->speed = 1;
+  golem->chase_range = 256;
  }
  
  return golem;
 }
 
-static ETT_e *
+static ETT_Entity *
 ETT_ProjectileMake(ETT_ProjectileKind kind,
-                   ETT_e *parent,
+                   ETT_Entity *parent,
                    int source_x,
                    int source_y,
                    int target_x,
                    int target_y)
 {
- ETT_e *projectile = ETT_Push();
+ ETT_Entity *projectile = ETT_Push();
  
  if (projectile)
  {
@@ -230,7 +285,6 @@ ETT_ProjectileMake(ETT_ProjectileKind kind,
   projectile->y = source_y;
   projectile->prev_x = projectile->x;
   projectile->prev_y = projectile->y;
-  projectile->parent = parent;
   
   float speed;
   
@@ -238,6 +292,7 @@ ETT_ProjectileMake(ETT_ProjectileKind kind,
   {
    case ETT_ProjectileKind_player:
    {
+    projectile->collision_mask = ETT_CollisionMask_monsters;
     projectile->timer = 0.5f;
     projectile->collision_w = 8;
     projectile->collision_h = 8;
@@ -249,6 +304,7 @@ ETT_ProjectileMake(ETT_ProjectileKind kind,
    
    case ETT_ProjectileKind_golem:
    {
+    projectile->collision_mask = ETT_CollisionMask_player;
     projectile->timer = 1.0f;
     projectile->collision_w = 8;
     projectile->collision_h = 8;
@@ -275,7 +331,7 @@ ETT_ProjectileMake(ETT_ProjectileKind kind,
 static void
 ETT_HelpMePleaseWhatAmIDoing(const PLT_GameInput *input,
                              const FLS_State *falling_sand_state,
-                             ETT_e *e)
+                             ETT_Entity *e)
 {
  int vel_x;
  int dir_x;
@@ -343,7 +399,7 @@ ETT_HelpMePleaseWhatAmIDoing(const PLT_GameInput *input,
                          e->y + y - incline,
                          FLS_CellFlags_solid))
    {
-    if (incline < ETT_maxWalkableIncline)
+    if (incline < e->max_walkable_incline)
     {
      int can_move_up = 1;
      for (int x = 0;
@@ -383,10 +439,10 @@ ETT_Update(const PLT_GameInput *input,
 {
  static size_t tick_count = 0;
  
- static ETT_e *player = NULL;
+ static ETT_Entity *player = NULL;
  
- ETT_e *prev = NULL;
- for (ETT_e *e = ETT_list;
+ ETT_Entity *prev = NULL;
+ for (ETT_Entity *e = ETT_entities.active_list;
       NULL != e;
       e = e->next)
  {
@@ -423,11 +479,11 @@ ETT_Update(const PLT_GameInput *input,
    
    if (move_left)
    {
-    e->vel_x = MTH_MaxI(e->vel_x - 1, -ETT_playerSpeed);
+    e->vel_x = MTH_MaxI(e->vel_x - 1, -e->speed);
    }
    else if (move_right)
    {
-    e->vel_x = MTH_MinI(e->vel_x + 1, ETT_playerSpeed);
+    e->vel_x = MTH_MinI(e->vel_x + 1, e->speed);
    }
    else
    {
@@ -477,33 +533,29 @@ ETT_Update(const PLT_GameInput *input,
    }
   }
   
-  if (e->flags & ETT_Flags_isGolem)
+  if (e->flags & ETT_Flags_humanoidAI)
   {
    if (player)
    {
-    const int chase_range = 256;
-    
     int x_dist = MTH_AbsI(e->x - player->x);
     
     if (ETT_State_chasing == e->state)
     {
-     int golem_speed = 1;
-     
      e->flags |= ETT_Flags_fireProjectile;
      projectile_target_x = player->x + player->collision_w / 2;
      projectile_target_y = player->y + player->collision_h / 2;
      
-     if (player->x < e->x && x_dist < chase_range)
+     if (player->x < e->x && x_dist < e->chase_range)
      {
-      if (e->vel_x > -golem_speed)
+      if (e->vel_x > -e->speed)
       {
        e->vel_x -= 1;
       }
       e->is_v_flip = 1;
      }
-     else if (player->x > e->x && x_dist < chase_range)
+     else if (player->x > e->x && x_dist < e->chase_range)
      {
-      if (e->vel_x < golem_speed)
+      if (e->vel_x < e->speed)
       {
        e->vel_x += 1;
       }
@@ -518,7 +570,7 @@ ETT_Update(const PLT_GameInput *input,
     {
      e->flags &= ~ETT_Flags_fireProjectile;
      
-     if (x_dist > player->collision_w && x_dist < chase_range)
+     if (x_dist > player->collision_w && x_dist < e->chase_range)
      {
       e->state = ETT_State_chasing;
      }
@@ -575,7 +627,9 @@ ETT_Update(const PLT_GameInput *input,
      e->state = ETT_State_removed;
     }
     
-    if (FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_destructable) &&
+    int radius = e->collision_w / 2;
+    if ((x - radius) * (x - radius) + (y - radius) * (y - radius) < radius * radius &&
+        FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_destructable) &&
         (e->flags & ETT_Flags_destructive))
     {
      FLS_CellAt(falling_sand_state, e->x + x, e->y + y) = FLS_CellKind_empty;
@@ -584,18 +638,18 @@ ETT_Update(const PLT_GameInput *input,
   }
   
   // NOTE(tbt): collisions with other entities
-  for (ETT_e *f = ETT_list;
+  for (ETT_Entity *f = ETT_entities.active_list;
        NULL != f;
        f = f->next)
   {
+   if (0 == (e->collision_mask & f->collision_mask)) { continue; }
    if (e->x > f->x + f->collision_w || e->x + e->collision_w < f->x) { continue; }
    if (e->y > f->y + f->collision_h || e->y + e->collision_h < f->y) { continue; }
    
    // NOTE(tbt): collision
    {
     if ((e->flags & ETT_Flags_dealDamage) &&
-        (f->flags & ETT_Flags_takeDamage) &&
-        f != e->parent)
+        (f->flags & ETT_Flags_takeDamage))
     {
      f->health -= e->health;
      if (f->flags & ETT_Flags_knockBack)
@@ -631,16 +685,21 @@ ETT_Update(const PLT_GameInput *input,
   
   if (ETT_State_removed == e->state)
   {
+   if (e->flags & ETT_Flags_isMonster)
+   {
+    GME_monsterCount -= 1;
+   }
+   
    if (prev)
    {
     prev->next = e->next;
    }
    else
    {
-    ETT_list = e->next;
+    ETT_entities.active_list = e->next;
    }
-   e->next_free = ETT_arena.free_list;
-   ETT_arena.free_list = e;
+   e->next_free = ETT_entities.free_list;
+   ETT_entities.free_list = e;
   }
   else
   {
@@ -655,7 +714,7 @@ static void
 ETT_Render(const PLT_GameInput *input,
            double accumulator)
 {
- for (ETT_e *e = ETT_list;
+ for (ETT_Entity *e = ETT_entities.active_list;
       NULL != e;
       e = e->next)
  {

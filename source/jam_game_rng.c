@@ -2,8 +2,8 @@
 // NOTE(tbt): simple RNG helpers
 //
 
-static int
-RNG_HashFromInt(int in)
+static unsigned int
+RNG_HashFromInt(unsigned int in)
 {
  in ^= 2747636419;
  in *= 2654435769;
@@ -18,11 +18,13 @@ static int
 RNG_RandIntNext(int min,
                 int max)
 {
- static int seed = 0;
- int result = RNG_HashFromInt(seed);
+ static unsigned int seed = 0;
+ seed += 1;
+ 
+ int result = MTH_AbsI(RNG_HashFromInt(seed));
  result %= max - min;
  result += min;
- seed += 1;
+ 
  return result;
 }
 
