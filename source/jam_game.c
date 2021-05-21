@@ -22,7 +22,6 @@ static int GME_wave = 0;
 #include "jam_game_rng.c"
 #include "jam_game_falling_sand.c"
 #include "jam_game_renderer.c"
-#include "jam_game_particles.c"
 #include "jam_game_entities.c"
 
 FLS_State GME_fallingSandState;
