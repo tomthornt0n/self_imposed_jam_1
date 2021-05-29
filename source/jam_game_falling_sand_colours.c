@@ -24,16 +24,22 @@ FSC_PerlinPrecompute(void)
     }
 }
 
-static Colour
-FSC_Darkness(int x,
+static void
+FSC_Darkness(Colour *result,
+             int x,
              int y)
 {
     int noise = (MTH_AbsI(FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)]) % 2);
-    return (Colour){ noise * 8, noise * 4, noise * 4, 255 };
+    
+    result->b = noise * 8;
+    result->g = noise * 4;
+    result->r = noise * 4;
+    result->a = 255;
 }
 
-static Colour
+static void
 FSC_PerlinNoise(const FLS_State *state,
+                Colour *result,
                 int x,
                 int y,
                 float base_b,
@@ -46,11 +52,15 @@ FSC_PerlinNoise(const FLS_State *state,
     
     float perlin = FSC_precomputedPerlin[PLT_GamePixelIndex(x, y)];
     
-    b = MTH_MinF(1.0f, b + (perlin * 0.00000002f));
-    g = MTH_MinF(1.0f, g + (perlin * 0.00000002f));
-    r = MTH_MinF(1.0f, r + (perlin * 0.00000002f));
+    float noise_intensity = 0.00000002f;
+    b = MTH_MinF(1.0f, b + (perlin * noise_intensity));
+    g = MTH_MinF(1.0f, g + (perlin * noise_intensity));
+    r = MTH_MinF(1.0f, r + (perlin * noise_intensity));
     
-    Colour result = (Colour){ 255 * b, 255 * g, 255 * r, 255 };
+    result->b = 255.0f * b;
+    result->g = 255.0f * g;
+    result->r = 255.0f * r;
+    result->a = 255;
     
     int depth = 0;
     for (int i = 0;
@@ -70,17 +80,19 @@ FSC_PerlinNoise(const FLS_State *state,
         }
     }
     
-    Colour darkness = FSC_Darkness(x, y);
-    unsigned char light_intensity = depth * (255 / FSC_lightPenetrationDepth);
-    result.b = ((light_intensity * (result.b - darkness.b)) >> 8) + darkness.b;
-    result.g = ((light_intensity * (result.g - darkness.g)) >> 8) + darkness.g;
-    result.r = ((light_intensity * (result.r - darkness.r)) >> 8) + darkness.r;
+    Colour darkness;
+    FSC_Darkness(&darkness, x, y);
     
-    return result;
+    unsigned char light_intensity = depth * (255 / FSC_lightPenetrationDepth);
+    
+    result->b = MTH_InterpolateLinearI(result->b, darkness.b, 255 - light_intensity);
+    result->g = MTH_InterpolateLinearI(result->g, darkness.g, 255 - light_intensity);
+    result->r = MTH_InterpolateLinearI(result->r, darkness.r, 255 - light_intensity);
 }
 
-static Colour
+static void
 FSC_Stratified(const FLS_State *state,
+               Colour *result,
                int x,
                int y,
                Colour colours[],
@@ -110,34 +122,38 @@ FSC_Stratified(const FLS_State *state,
     
     if (i >= colour_count)
     {
-        return FSC_Darkness(x, y);
+        FSC_Darkness(result, x, y);
     }
     else
     {
-        return colours[i];
+        result->b = colours[i].b;
+        result->g = colours[i].g;
+        result->r = colours[i].r;
+        result->a = colours[i].a;
     }
 }
 
-static Colour FSC_Liquid(const FLS_State *state,
-                         int x,
-                         int y,
-                         const Colour *base_colour,
-                         const Colour *light_colour,
-                         float depth_gradient_amount)
+static void
+FSC_Liquid(const FLS_State *state,
+           Colour *result,
+           int x,
+           int y,
+           const Colour *base_colour,
+           const Colour *light_colour,
+           float depth_gradient_amount)
 
 {
-    Colour result = *base_colour;
+    result->b = base_colour->b;
+    result->g = base_colour->g;
+    result->r = base_colour->r;
+    result->a = base_colour->a;
     
     int depth;
     for (depth = 0; FLS_CellKind_empty != FLS_CellAt(state, x, y - depth); depth += 1);
     
-    int light_intensity = MTH_MinI(depth * (255 / FSC_lightPenetrationDepth), 255);
-    result.b = ((light_intensity * (result.b - light_colour->b)) >> 8) + light_colour->b;
-    result.g = ((light_intensity * (result.g - light_colour->g)) >> 8) + light_colour->g;
-    result.r = ((light_intensity * (result.r - light_colour->r)) >> 8) + light_colour->r;
-    result.a = ((light_intensity * (result.a - light_colour->a)) >> 8) + light_colour->a;
-    
-    result.a = MTH_MinI(result.a + depth / (int)(1.0f / depth_gradient_amount), 255);
-    
-    return result;
+    int light_intensity = MTH_MaxI(255 - (depth * (255 / FSC_lightPenetrationDepth)), 0);
+    result->b = MTH_InterpolateLinearI(result->b, light_colour->b, light_intensity);
+    result->g = MTH_InterpolateLinearI(result->g, light_colour->g, light_intensity);
+    result->r = MTH_InterpolateLinearI(result->r, light_colour->r, light_intensity);
+    result->a = MTH_MinI(result->a + depth / (int)(1.0f / depth_gradient_amount), 255);
 }

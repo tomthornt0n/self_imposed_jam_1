@@ -57,9 +57,13 @@ GME_UpdateAndRender(const PLT_GameInput *input)
     static double accumulator = 0.0;
     
     accumulator += input->dt;
+#if 0
     accumulator = MTH_MinF(accumulator, 0.12);
-    
-    while (accumulator > GME_timestep)
+    while
+#else
+    if
+#endif
+    (accumulator > GME_timestep)
     {
         accumulator -= GME_timestep;
         
@@ -79,18 +83,30 @@ GME_UpdateAndRender(const PLT_GameInput *input)
                     int x = RNG_RandIntNext(0, PLT_gameFixedW - 1);
                     int y = 47;
                     
-                    int monster_kind = RNG_RandIntNext(0, 3);
-                    if (monster_kind == 0)
+                    enum
+                    {
+                        MonsterKind_slime,
+                        MonsterKind_sandGolem,
+                        MonsterKind_dirtGolem,
+                        MonsterKind_stoneGolem,
+                        MonsterKind_MAX,
+                    } monster_kind = RNG_RandIntNext(0, MonsterKind_MAX);
+                    
+                    if (monster_kind == MonsterKind_sandGolem)
                     {
                         ETT_SandGolemMake(x, y);
                     }
-                    else if (monster_kind == 2)
+                    else if (monster_kind == MonsterKind_dirtGolem)
                     {
                         ETT_DirtGolemMake(x, y);
                     }
-                    else if (monster_kind == 1)
+                    else if (monster_kind == MonsterKind_slime)
                     {
                         ETT_SlimeMake(x, y);
+                    }
+                    else if (monster_kind == MonsterKind_stoneGolem)
+                    {
+                        ETT_StoneGolemMake(x, y);
                     }
                 }
             }
