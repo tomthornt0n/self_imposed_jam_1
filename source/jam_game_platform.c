@@ -4,6 +4,8 @@
 
 #define ArrayCount(_a) (sizeof(_a) / sizeof(_a[0]))
 
+#define Bit(_a) (1 << (_a))
+
 struct Colour
 {
  unsigned char b;

@@ -5,28 +5,26 @@
 static inline void
 RDR_SetPixel(const PLT_GameInput *input,
              size_t x, size_t y,
-             const Pixel *pixel,
+             const Colour *colour,
              int is_bg)
 {
- if (pixel->a > 0 && PLT_GameHasPixel(x, y))
+ if (colour->a > 0 && PLT_GameHasPixel(x, y))
  {
-  int a = !!is_bg;
+  Pixel *pixel= &input->pixels[PLT_GamePixelIndex(x, y)];
   
-  if (pixel->a == 255)
+  if (colour->a == 255)
   {
-   input->pixels[PLT_GamePixelIndex(x, y)] = *pixel;
-   input->pixels[PLT_GamePixelIndex(x, y)].a = a;
+   memcpy(pixel, colour, sizeof(*pixel));
   }
   else
   {
-   Pixel current = input->pixels[PLT_GamePixelIndex(x, y)];
-   int src_alpha = 255 - pixel->a;
    
-   input->pixels[PLT_GamePixelIndex(x, y)].b = ((src_alpha * (current.b - pixel->b)) >> 8) + pixel->b;
-   input->pixels[PLT_GamePixelIndex(x, y)].g = ((src_alpha * (current.g - pixel->g)) >> 8) + pixel->g;
-   input->pixels[PLT_GamePixelIndex(x, y)].r = ((src_alpha * (current.r - pixel->r)) >> 8) + pixel->r;
-   input->pixels[PLT_GamePixelIndex(x, y)].a = a;
+   pixel->b = MTH_InterpolateLinearI(pixel->b, colour->b, colour->a);
+   pixel->g = MTH_InterpolateLinearI(pixel->g, colour->g, colour->a);
+   pixel->r = MTH_InterpolateLinearI(pixel->r, colour->r, colour->a);
   }
+  
+  pixel->a = !!is_bg;
  }
 }
 

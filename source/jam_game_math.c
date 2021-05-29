@@ -3,6 +3,16 @@
 //
 
 static float
+MTH_Sqrt(float a)
+{
+ __m128 _a;
+ _a = _mm_load_ss(&a);
+ _a = _mm_sqrt_ss(_a);
+ _mm_store_ss(&a, _a);
+ return a;
+}
+
+static float
 MTH_Smoothstep(float t)
 {
  return t * t * (3 - 2 * t);
@@ -22,6 +32,14 @@ MTH_InterpolateSmoothF(float a,
                        float t)
 {
  return MTH_InterpolateLinearF(a, b, MTH_Smoothstep(t));
+}
+
+static inline int
+MTH_InterpolateLinearI(int a,
+                       int b,
+                       unsigned char t)
+{
+ return (((t * (b - a)) >> 8) + a);
 }
 
 static inline int

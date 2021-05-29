@@ -21,9 +21,18 @@ RNG_RandIntNext(int min,
  static unsigned int seed = 0;
  seed += 1;
  
- int result = MTH_AbsI(RNG_HashFromInt(seed));
- result %= max - min;
- result += min;
+ int result;
+ 
+ if (max == min)
+ {
+  result = min;
+ }
+ else
+ {
+  result = MTH_AbsI(RNG_HashFromInt(seed));
+  result %= max - min;
+  result += min;
+ }
  
  return result;
 }

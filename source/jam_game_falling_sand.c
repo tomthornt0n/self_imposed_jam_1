@@ -23,6 +23,7 @@ typedef enum
  FLS_CellFlags_rise           = 1 << 3,
  FLS_CellFlags_solid          = 1 << 4,
  FLS_CellFlags_destructable   = 1 << 5,
+ FLS_CellFlags_exists         = 1 << 6,
 } FLS_CellFlags_ENUM;
 
 typedef struct
@@ -54,29 +55,40 @@ struct FLS_Cell
  [FLS_CellKind_sand] =
  {
   .get_colour = FLS_SandGetColour,
-  .flags = FLS_CellFlags_fallVertical | FLS_CellFlags_fallDiagonal | FLS_CellFlags_solid | FLS_CellFlags_destructable,
+  .flags = (FLS_CellFlags_exists |
+            FLS_CellFlags_fallVertical |
+            FLS_CellFlags_fallDiagonal |
+            FLS_CellFlags_solid |
+            FLS_CellFlags_destructable),
   .density = 2,
  },
  
  [FLS_CellKind_water] =
  {
   .get_colour = FLS_WaterGetColour,
-  .flags = FLS_CellFlags_fallVertical | FLS_CellFlags_fallDiagonal | FLS_CellFlags_fallHorizontal,
+  .flags = (FLS_CellFlags_exists |
+            FLS_CellFlags_fallVertical |
+            FLS_CellFlags_fallDiagonal |
+            FLS_CellFlags_fallHorizontal),
   .density = 1,
  },
  
  [FLS_CellKind_stone] = 
  {
   .get_colour = FLS_StoneGetColour,
-  .flags = FLS_CellFlags_solid,
+  .flags = FLS_CellFlags_exists | FLS_CellFlags_solid,
   .density = 999,
  },
  
  [FLS_CellKind_dirt] = 
  {
   .get_colour = FLS_DirtGetColour,
-  .flags = FLS_CellFlags_fallVertical | FLS_CellFlags_solid | FLS_CellFlags_destructable,
-  .density = 999,
+  .flags = (FLS_CellFlags_exists |
+            FLS_CellFlags_fallVertical |
+            FLS_CellFlags_fallDiagonal |
+            FLS_CellFlags_solid |
+            FLS_CellFlags_destructable),
+  .density = 2,
  },
 };
 
@@ -84,7 +96,7 @@ static int
 FLS_CellHasFlag(FLS_CellKind cell,
                 FLS_CellFlags flags)
 {
- return (FLS_cellTable[cell].flags & (flags));
+ return !!(FLS_cellTable[cell].flags & (flags));
 }
 
 
