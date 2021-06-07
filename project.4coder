@@ -95,19 +95,6 @@ command_list =
             { "echo Linux build assets command not implemented for 4coder project.", .os = "linux" },
         },
     },
-
-    {
-        .name = "open_debugger",
-        .out = "*compilation*",
-        .foorter_panel = true,
-        .save_dirt_files = true,
-        .cursor_at_end = false,
-        .cmd = 
-        {
-            { "WinDbgX .\build\jam_game.exe", .os = "win" },
-            { "echo Linux open debugger command not implemented for 4coder project.", .os = "linux" },
-        }
-    },
 };
           
 fkey_command[1] = "build";
@@ -115,4 +102,3 @@ fkey_command[2] = "run";
 fkey_command[3] = "build_resources";
 fkey_command[5] = "build_and_run";
 fkey_command[11] = "build_resource_packer";
-fkey_command[12] = "open_debugger";

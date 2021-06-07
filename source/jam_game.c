@@ -14,10 +14,7 @@ typedef struct
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 
-static double GME_timestep = 0.0167;
-
-static int GME_monsterCount = 0;
-static int GME_wave = 0;
+static const double GME_timestep = 0.0167;
 
 typedef enum
 {
@@ -25,7 +22,13 @@ typedef enum
     GME_State_gameOver,
 } GME_State;
 
-GME_State GME_state = GME_State_playing;
+static struct
+{
+    double time_dilation;
+    int monster_count;
+    int wave;
+    GME_State state;
+} GME_state = {0};
 
 #include "jam_game_platform.c"
 #include "jam_game_resources.gen.c"
@@ -39,7 +42,7 @@ FLS_State GME_fallingSandState;
 RES_Texture GME_backgroundTexture;
 
 void
-GME_Initialise(void)
+GME_Initialise(const PLT_GameInput *input)
 {
     RES_BackgroundTextureGet(&GME_backgroundTexture);
     
@@ -49,6 +52,14 @@ GME_Initialise(void)
     RES_Level1TextureGet(&level_1_texture);
     FLS_StateFromTexture(&GME_fallingSandState, &level_1_texture);
     ETT_PlayerMake(300, 47);
+    
+    GME_state.time_dilation = 1.0;
+}
+
+static int
+GME_CalculateScore(void)
+{
+    return (GME_state.wave * GME_state.wave * GME_state.wave - GME_state.monster_count);
 }
 
 void
@@ -57,38 +68,40 @@ GME_UpdateAndRender(const PLT_GameInput *input)
     static double accumulator = 0.0;
     
     accumulator += input->dt;
+    
 #if 0
     accumulator = MTH_MinF(accumulator, 0.12);
     while
 #else
     if
 #endif
-    (accumulator > GME_timestep)
+    (accumulator > GME_timestep * GME_state.time_dilation)
     {
-        accumulator -= GME_timestep;
+        accumulator -= GME_timestep * GME_state.time_dilation;
         
-        if (GME_State_playing == GME_state)
+        if (GME_State_playing == GME_state.state)
         {
             FLS_Update(input, &GME_fallingSandState);
             ETT_Update(input, &GME_fallingSandState);
             
-            if (GME_monsterCount <= 0)
+            if (GME_state.monster_count <= 0)
             {
-                GME_wave += 1;
+                GME_state.wave += 1;
                 
                 for (int i = 0;
-                     i < GME_wave;
+                     i < GME_state.wave;
                      i += 1)
                 {
-                    int x = RNG_RandIntNext(0, PLT_gameFixedW - 1);
+                    int x = RNG_RandIntNext(0, PLT_gameFixedW - 48);
                     int y = 47;
                     
                     enum
                     {
-                        MonsterKind_slime,
                         MonsterKind_sandGolem,
                         MonsterKind_dirtGolem,
                         MonsterKind_stoneGolem,
+                        MonsterKind_cloud,
+                        MonsterKind_slime,
                         MonsterKind_MAX,
                     } monster_kind = RNG_RandIntNext(0, MonsterKind_MAX);
                     
@@ -108,30 +121,56 @@ GME_UpdateAndRender(const PLT_GameInput *input)
                     {
                         ETT_StoneGolemMake(x, y);
                     }
+                    else if (monster_kind == MonsterKind_cloud)
+                    {
+                        ETT_CloudMake(x, y + RNG_RandIntNext(0, 16));
+                    }
                 }
             }
         }
-        else if (GME_State_gameOver == GME_state)
+        else if (GME_State_gameOver == GME_state.state)
         {
         }
     }
     
-    if (GME_State_playing == GME_state)
+    if (GME_State_playing == GME_state.state)
     {
         RDR_DrawSubTexture(input, &GME_backgroundTexture, RectLit(0, 0, GME_backgroundTexture.w, GME_backgroundTexture.h), 0, 0, RDR_DrawSubTextureFlags_isBg);
         ETT_Render(input, accumulator);
         RDR_DrawTexture(input, &GME_fallingSandState.texture, 0, 0);
         RDR_DrawShadows(input, 12);
+        
+        // NOTE(tbt): draw score text
+        {
+            char score_str[64];
+            stbsp_snprintf(score_str, sizeof(score_str), "score: %d", GME_CalculateScore());
+            RDR_DrawString(input, score_str, 4, 4);
+        }
     }
-    else if (GME_State_gameOver == GME_state)
+    else if (GME_State_gameOver == GME_state.state)
     {
         RDR_ClearScreen(input);
-        char msg_str[64];
-        stbsp_snprintf(msg_str, sizeof(msg_str), "    :(\n\n Game Over\n\nYou scored: %d", GME_wave * GME_wave * GME_wave - GME_monsterCount);
-        RDR_DrawString(input, msg_str, 200, 100);
+        char msg_str[80];
+        stbsp_snprintf(msg_str, sizeof(msg_str), "Game Over\nYou scored: %d\nPress enter to retry...", GME_CalculateScore());
+        RDR_DrawString(input, msg_str, 100, 100);
+        
+        if (input->is_key_down[PLT_Key_enter])
+        {
+            ETT_FreeAll();
+            memset(&GME_state, 0, sizeof(GME_state));
+            GME_state.time_dilation = 1.0;
+            
+            RES_Texture level_1_texture;
+            RES_Level1TextureGet(&level_1_texture);
+            FLS_StateFromTexture(&GME_fallingSandState, &level_1_texture);
+            
+            ETT_PlayerMake(300, 47);
+        }
     }
     
+#if 0
     char fps_str[64];
     stbsp_snprintf(fps_str, sizeof(fps_str), "%fms (%f fps)", input->dt * 1000, 1.0 / input->dt);
     RDR_DrawString(input, fps_str, 4, 4);
+#endif
 }

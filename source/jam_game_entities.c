@@ -1,6 +1,6 @@
 enum ETT_Constants
 {
-    ETT_maxEntities = 512,
+    ETT_maxEntities = 4096,
     ETT_maxAnimationFrames = 16,
     
     ETT_gravityStrength = 1,
@@ -8,7 +8,8 @@ enum ETT_Constants
     ETT_playerJumpPower = 2,
     ETT_playerJumpMax = 7,
     
-    ETT_healthBarWidth = 36,
+    ETT_progressBarWidth = 36,
+    ETT_progressBarHeight = 4,
 };
 
 typedef size_t ETT_Flags;
@@ -16,41 +17,49 @@ typedef enum
 {
     ETT_Flags_drawSubTexture           = 1 <<  0,
     ETT_Flags_drawHealthBar            = 1 <<  1,
-    ETT_Flags_drawBobAnimation         = 1 <<  2,
+    ETT_Flags_drawTimerBar             = 1 <<  2,
+    ETT_Flags_drawBobAnimation         = 1 <<  3,
     
-    ETT_Flags_isPlayer                 = 1 <<  3,
-    ETT_Flags_isMonster                = 1 <<  4,
+    ETT_Flags_isPlayer                 = 1 <<  4,
+    ETT_Flags_isMonster                = 1 <<  5,
     
-    ETT_Flags_humanoidAI               = 1 <<  5,
-    ETT_Flags_fireAtPlayer             = 1 <<  6,
+    ETT_Flags_humanoidAI               = 1 <<  6,
+    ETT_Flags_flyingAI                 = 1 <<  7,
+    ETT_Flags_fireAtPlayer             = 1 <<  8,
     
-    ETT_Flags_simpleMovement           = 1 <<  7,
-    ETT_Flags_mobMovement              = 1 <<  8,
-    ETT_Flags_gravity                  = 1 <<  9,
+    ETT_Flags_simpleMovement           = 1 <<  9,
+    ETT_Flags_mobMovement              = 1 << 10,
+    ETT_Flags_gravity                  = 1 << 11,
+    ETT_Flags_bounceOnContact          = 1 << 12,
     
-    ETT_Flags_destructive              = 1 << 10,
+    ETT_Flags_destructive              = 1 << 13,
     
-    ETT_Flags_removeOnContact          = 1 << 11,
-    ETT_Flags_removeAfterTimer         = 1 << 12,
-    ETT_Flags_removeWhenHealthDepleted = 1 << 13,
-    ETT_Flags_removeWhenSubmerged      = 1 << 14,
+    ETT_Flags_removeOnContact          = 1 << 14,
+    ETT_Flags_removeAfterTimer         = 1 << 15,
+    ETT_Flags_removeWhenHealthDepleted = 1 << 16,
+    ETT_Flags_removeWhenSubmerged      = 1 << 17,
     
-    ETT_Flags_playAnimation            = 1 << 15,
-    ETT_Flags_walkAnimation            = 1 << 16,
+    ETT_Flags_playAnimation            = 1 << 18,
+    ETT_Flags_walkAnimation            = 1 << 19,
     
-    ETT_Flags_dealDamage               = 1 << 17,
-    ETT_Flags_takeDamage               = 1 << 18,
-    ETT_Flags_dropHealth               = 1 << 19,
+    ETT_Flags_dealDamage               = 1 << 20,
+    ETT_Flags_takeDamage               = 1 << 21,
+    ETT_Flags_dropHealth               = 1 << 22,
     
-    ETT_Flags_knockBack                = 1 << 20,
-    ETT_Flags_knockedBack              = 1 << 21,
+    ETT_Flags_knockBack                = 1 << 23,
+    ETT_Flags_knockedBack              = 1 << 24,
     
-    ETT_Flags_fireProjectile           = 1 << 22,
+    ETT_Flags_fireProjectile           = 1 << 25,
     
-    ETT_Flags_particlesWhenRemoved     = 1 << 23,
-    ETT_Flags_turnToSandWhenRemoved    = 1 << 24,
+    ETT_Flags_particlesWhenRemoved     = 1 << 26,
+    ETT_Flags_turnToSandWhenRemoved    = 1 << 27,
     
-    ETT_Flags_attractedToPlayer        = 1 << 25,
+    ETT_Flags_attractedToPlayer        = 1 << 28,
+    
+    ETT_Flags_isCloud                  = 1 << 29,
+    ETT_Flags_rain                     = 1 << 30,
+    
+    ETT_Flags_drown                    = 1 << 31,
 } ETT_Flags_ENUM;
 
 typedef enum
@@ -60,14 +69,16 @@ typedef enum
     ETT_ProjectileKind_dirt,
     ETT_ProjectileKind_stone,
     ETT_ProjectileKind_slime,
+    ETT_ProjectileKind_lightning,
 } ETT_ProjectileKind;
 
 typedef enum
 {
     ETT_State_default,
-    ETT_State_chasing,
     ETT_State_jumping,
+    ETT_State_swimming,
     ETT_State_removed,
+    ETT_State_hidden,
 } ETT_State;
 
 typedef unsigned char ETT_CollisionMask;
@@ -92,6 +103,7 @@ struct ETT_Entity
     ETT_CollisionMask collide_with;
     
     float timer;
+    float timer_max;
     
     int x;
     int y;
@@ -116,6 +128,7 @@ struct ETT_Entity
     
     ETT_ProjectileKind projectile_kind;
     float fire_rate;
+    float fire_timer;
     
     int range_max;
     int range_min;
@@ -187,6 +200,8 @@ ETT_PlayerMake(int x, int y)
         player->flags |= ETT_Flags_knockedBack;
         player->flags |= ETT_Flags_particlesWhenRemoved;
         player->flags |= ETT_Flags_removeWhenSubmerged;
+        //player->flags |= ETT_Flags_removeWhenHealthDepleted;
+        player->flags |= ETT_Flags_drown;
         player->x = x;
         player->y = y;
         player->collision_w = 16;
@@ -209,6 +224,7 @@ ETT_PlayerMake(int x, int y)
         player->health = 256;
         player->max_health = 256;
         player->speed = 2;
+        player->timer_max = 0.75; // NOTE(tbt): time in seconds to start drowning
     }
     
     return player;
@@ -253,7 +269,7 @@ ETT_SandGolemMake(int x, int y)
     if (golem)
     {
         ETT_SmokeParticlesMake(64, x, y);
-        GME_monsterCount += 1;
+        GME_state.monster_count += 1;
         
         golem->flags |= ETT_Flags_isMonster;
         golem->flags |= ETT_Flags_humanoidAI;
@@ -269,6 +285,7 @@ ETT_SandGolemMake(int x, int y)
         golem->flags |= ETT_Flags_dropHealth;
         golem->flags |= ETT_Flags_knockedBack;
         golem->flags |= ETT_Flags_turnToSandWhenRemoved;
+        golem->flags |= ETT_Flags_drown;
         golem->x = x;
         golem->y = y;
         golem->collision_w = 16;
@@ -290,9 +307,10 @@ ETT_SandGolemMake(int x, int y)
         golem->projectile_kind = ETT_ProjectileKind_sand;
         golem->max_health = 255;
         golem->health = 255;
-        golem->health_to_drop = 4 * GME_wave;
+        golem->health_to_drop = 4 * GME_state.wave;
         golem->speed = 1;
         golem->range_max = 256;
+        golem->timer_max = 0.5; // NOTE(tbt): time in seconds to start drowning
     }
     
     return golem;
@@ -306,7 +324,7 @@ ETT_StoneGolemMake(int x, int y)
     if (golem)
     {
         ETT_SmokeParticlesMake(64, x, y);
-        GME_monsterCount += 1;
+        GME_state.monster_count += 1;
         
         golem->flags |= ETT_Flags_isMonster;
         golem->flags |= ETT_Flags_humanoidAI;
@@ -343,7 +361,7 @@ ETT_StoneGolemMake(int x, int y)
         golem->projectile_kind = ETT_ProjectileKind_stone;
         golem->max_health = 512;
         golem->health = 512;
-        golem->health_to_drop = 16 * GME_wave;
+        golem->health_to_drop = 16 * GME_state.wave;
         golem->speed = 1;
         golem->range_max = 256;
     }
@@ -359,7 +377,7 @@ ETT_DirtGolemMake(int x, int y)
     if (golem)
     {
         ETT_SmokeParticlesMake(64, x, y);
-        GME_monsterCount += 1;
+        GME_state.monster_count += 1;
         
         golem->flags |= ETT_Flags_isMonster;
         golem->flags |= ETT_Flags_humanoidAI;
@@ -396,7 +414,7 @@ ETT_DirtGolemMake(int x, int y)
         golem->projectile_kind = ETT_ProjectileKind_dirt;
         golem->max_health = 255;
         golem->health = 255;
-        golem->health_to_drop = 5 * GME_wave;
+        golem->health_to_drop = 5 * GME_state.wave;
         golem->speed = 1;
         golem->range_max = 256;
         golem->range_min = 24;
@@ -413,7 +431,7 @@ ETT_SlimeMake(int x, int y)
     if (slime)
     {
         ETT_SmokeParticlesMake(64, x, y);
-        GME_monsterCount += 1;
+        GME_state.monster_count += 1;
         
         slime->flags |= ETT_Flags_isMonster;
         slime->flags |= ETT_Flags_humanoidAI;
@@ -450,12 +468,55 @@ ETT_SlimeMake(int x, int y)
         slime->projectile_kind = ETT_ProjectileKind_slime;
         slime->max_health = 32;
         slime->health = 32;
-        slime->health_to_drop = GME_wave;
+        slime->health_to_drop = GME_state.wave;
         slime->speed = 1;
         slime->range_max = 256;
     }
     
     return slime;
+}
+
+static ETT_Entity *
+ETT_CloudMake(int x, int y)
+{
+    ETT_Entity *cloud = ETT_Push();
+    
+    if (cloud)
+    {
+        ETT_SmokeParticlesMake(64, x, y);
+        GME_state.monster_count += 1;
+        
+        cloud->flags |= ETT_Flags_isMonster;
+        cloud->flags |= ETT_Flags_flyingAI;
+        cloud->flags |= ETT_Flags_drawSubTexture;
+        cloud->flags |= ETT_Flags_mobMovement;
+        cloud->flags |= ETT_Flags_removeWhenHealthDepleted;
+        cloud->flags |= ETT_Flags_drawHealthBar;
+        cloud->flags |= ETT_Flags_takeDamage;
+        cloud->flags |= ETT_Flags_dropHealth;
+        cloud->flags |= ETT_Flags_turnToSandWhenRemoved;
+        cloud->flags |= ETT_Flags_fireProjectile;
+        cloud->flags |= ETT_Flags_isCloud;
+        cloud->x = x;
+        cloud->y = y;
+        cloud->collision_w = 35;
+        cloud->collision_h = 16;
+        cloud->collision_layer = ETT_CollisionLayer_monsters;
+        cloud->collide_with = (Bit(ETT_CollisionLayer_fallingSand) |
+                               Bit(ETT_CollisionLayer_projectiles));
+        RES_SpritesheetTextureGet(&cloud->texture);
+        cloud->sub_texture[0] = (RDR_SubTexture){ 0, 98, 35, 114 };
+        cloud->turn_to_sand_kind = FLS_CellKind_water;
+        cloud->fire_rate = 2.0f;
+        cloud->projectile_kind = ETT_ProjectileKind_lightning;
+        cloud->max_health = 32;
+        cloud->health = 32;
+        cloud->health_to_drop = (GME_state.wave / 2) * 4;
+        cloud->speed = 1;
+        cloud->range_max = 128;
+    }
+    
+    return cloud;
 }
 
 static void
@@ -502,6 +563,19 @@ ETT_HealthPickupMake(int count,
 }
 
 static ETT_Entity *
+ETT_LightningMake(int x, int y)
+{
+    ETT_Entity *lightning = ETT_Push();
+    
+    if (lightning)
+    {
+        
+    }
+    
+    return lightning;
+}
+
+static ETT_Entity *
 ETT_ProjectileMake(ETT_ProjectileKind kind,
                    ETT_Entity *parent,
                    int source_x,
@@ -509,109 +583,137 @@ ETT_ProjectileMake(ETT_ProjectileKind kind,
                    int target_x,
                    int target_y)
 {
-    ETT_Entity *projectile = ETT_Push();
+    ETT_Entity *projectile;
+    
+    projectile = ETT_Push();
     
     if (projectile)
     {
-        projectile->flags |= ETT_Flags_drawSubTexture;
-        projectile->flags |= ETT_Flags_simpleMovement;
-        projectile->flags |= ETT_Flags_dealDamage;
-        projectile->collision_layer = ETT_CollisionLayer_projectiles;
-        projectile->x = source_x;
-        projectile->y = source_y;
-        projectile->prev_x = projectile->x;
-        projectile->prev_y = projectile->y;
-        
-        float speed;
-        
-        switch(kind)
+        if (ETT_ProjectileKind_lightning == kind)
         {
-            case ETT_ProjectileKind_player:
-            {
-                projectile->flags |= ETT_Flags_removeOnContact;
-                projectile->flags |= ETT_Flags_removeAfterTimer;
-                projectile->flags |= ETT_Flags_knockBack;
-                projectile->flags |= ETT_Flags_destructive;
-                projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
-                                             Bit(ETT_CollisionLayer_monsters));
-                projectile->timer = 0.5f;
-                projectile->collision_w = 8;
-                projectile->collision_h = 8;
-                RES_SpritesheetTextureGet(&projectile->texture);
-                projectile->sub_texture[0] = (RDR_SubTexture){ 48, 0, 56, 8 };
-                projectile->health = 8;
-                speed = 7.0f;
-            } break;
-            
-            case ETT_ProjectileKind_sand:
-            {
-                projectile->flags |= ETT_Flags_removeOnContact;
-                projectile->flags |= ETT_Flags_removeAfterTimer;
-                projectile->flags |= ETT_Flags_knockBack;
-                projectile->flags |= ETT_Flags_destructive;
-                projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
-                                             Bit(ETT_CollisionLayer_player));
-                projectile->timer = 1.0f;
-                projectile->collision_w = 8;
-                projectile->collision_h = 8;
-                RES_SpritesheetTextureGet(&projectile->texture);
-                projectile->sub_texture[0] = (RDR_SubTexture){ 56, 0, 64, 8 };
-                projectile->health = 7;
-                speed = 4.0f;
-            } break;
-            
-            case ETT_ProjectileKind_dirt:
-            {
-                projectile->flags |= ETT_Flags_removeOnContact;
-                projectile->flags |= ETT_Flags_knockBack;
-                projectile->flags |= ETT_Flags_turnToSandWhenRemoved;
-                projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
-                                             Bit(ETT_CollisionLayer_player));
-                projectile->collision_w = 8;
-                projectile->collision_h = 8;
-                RES_SpritesheetTextureGet(&projectile->texture);
-                projectile->sub_texture[0] = (RDR_SubTexture){ 48, 32, 56, 40 };
-                projectile->health = 8;
-                projectile->turn_to_sand_kind = FLS_CellKind_dirt;
-                speed = 5.0f;
-            } break;
-            
-            case ETT_ProjectileKind_stone:
-            {
-                projectile->flags |= ETT_Flags_removeAfterTimer;
-                projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
-                                             Bit(ETT_CollisionLayer_player));
-                projectile->timer = 0.5f;
-                projectile->collision_w = 8;
-                projectile->collision_h = 8;
-                RES_SpritesheetTextureGet(&projectile->texture);
-                projectile->sub_texture[0] = (RDR_SubTexture){ 56, 32, 64, 40 };
-                projectile->health = 1;
-                speed = 7.0f;
-            } break;
-            
-            case ETT_ProjectileKind_slime:
-            {
-                projectile->flags |= ETT_Flags_removeOnContact;
-                projectile->flags |= ETT_Flags_removeAfterTimer;
-                projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
-                                             Bit(ETT_CollisionLayer_player));
-                projectile->timer = 0.3f;
-                projectile->collision_w = 6;
-                projectile->collision_h = 6;
-                RES_SpritesheetTextureGet(&projectile->texture);
-                projectile->sub_texture[0] = (RDR_SubTexture){ 49, 9, 55, 15 };
-                projectile->health = 2;
-                speed = 8.0f;
-            } break;
+            projectile->flags |= ETT_Flags_drawSubTexture;
+            projectile->flags |= ETT_Flags_simpleMovement;
+            projectile->flags |= ETT_Flags_dealDamage;
+            projectile->flags |= ETT_Flags_removeOnContact;
+            projectile->flags |= ETT_Flags_destructive;
+            projectile->flags |= ETT_Flags_knockBack;
+            projectile->collision_w = 8;
+            projectile->collision_h = 11;
+            projectile->x = source_x + RNG_RandIntNext(0, parent->collision_w);
+            projectile->y = source_y;
+            projectile->prev_x = projectile->x;
+            projectile->prev_y = projectile->y;
+            projectile->collision_layer = ETT_CollisionLayer_projectiles;
+            projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
+                                         Bit(ETT_CollisionLayer_player));
+            RES_SpritesheetTextureGet(&projectile->texture);
+            projectile->sub_texture[0] = (RDR_SubTexture){ 48, 40, 56, 51 };
+            projectile->health = 60;
+            projectile->vel_y = 13;
         }
-        
+        else
         {
-            float a = target_x - source_x;
-            float b = target_y - source_y;
-            float normalise = MTH_ReciprocalSqrtF(a * a + b * b);
-            projectile->vel_x = a * normalise * speed;
-            projectile->vel_y = b * normalise * speed;
+            projectile->flags |= ETT_Flags_drawSubTexture;
+            projectile->flags |= ETT_Flags_simpleMovement;
+            projectile->flags |= ETT_Flags_dealDamage;
+            projectile->collision_layer = ETT_CollisionLayer_projectiles;
+            projectile->x = source_x;
+            projectile->y = source_y;
+            projectile->prev_x = projectile->x;
+            projectile->prev_y = projectile->y;
+            
+            float speed;
+            
+            switch(kind)
+            {
+                case ETT_ProjectileKind_player:
+                {
+                    projectile->flags |= ETT_Flags_removeOnContact;
+                    projectile->flags |= ETT_Flags_removeAfterTimer;
+                    projectile->flags |= ETT_Flags_knockBack;
+                    projectile->flags |= ETT_Flags_destructive;
+                    projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
+                                                 Bit(ETT_CollisionLayer_monsters));
+                    projectile->timer = 0.5f;
+                    projectile->collision_w = 8;
+                    projectile->collision_h = 8;
+                    RES_SpritesheetTextureGet(&projectile->texture);
+                    projectile->sub_texture[0] = (RDR_SubTexture){ 48, 0, 56, 8 };
+                    projectile->health = 8;
+                    speed = 7.0f;
+                } break;
+                
+                case ETT_ProjectileKind_sand:
+                {
+                    projectile->flags |= ETT_Flags_removeOnContact;
+                    projectile->flags |= ETT_Flags_removeAfterTimer;
+                    projectile->flags |= ETT_Flags_knockBack;
+                    projectile->flags |= ETT_Flags_destructive;
+                    projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
+                                                 Bit(ETT_CollisionLayer_player));
+                    projectile->timer = 1.0f;
+                    projectile->collision_w = 8;
+                    projectile->collision_h = 8;
+                    RES_SpritesheetTextureGet(&projectile->texture);
+                    projectile->sub_texture[0] = (RDR_SubTexture){ 56, 0, 64, 8 };
+                    projectile->health = 7 + GME_state.wave / 4;
+                    speed = 4.0f;
+                } break;
+                
+                case ETT_ProjectileKind_dirt:
+                {
+                    projectile->flags |= ETT_Flags_removeOnContact;
+                    projectile->flags |= ETT_Flags_knockBack;
+                    projectile->flags |= ETT_Flags_turnToSandWhenRemoved;
+                    projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
+                                                 Bit(ETT_CollisionLayer_player));
+                    projectile->collision_w = 8;
+                    projectile->collision_h = 8;
+                    RES_SpritesheetTextureGet(&projectile->texture);
+                    projectile->sub_texture[0] = (RDR_SubTexture){ 48, 32, 56, 40 };
+                    projectile->health = 8;
+                    projectile->turn_to_sand_kind = FLS_CellKind_dirt;
+                    speed = 5.0f;
+                } break;
+                
+                case ETT_ProjectileKind_stone:
+                {
+                    projectile->flags |= ETT_Flags_removeAfterTimer;
+                    projectile->flags |= ETT_Flags_removeOnContact;
+                    projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
+                                                 Bit(ETT_CollisionLayer_player));
+                    projectile->timer = 1.0f;
+                    projectile->collision_w = 8;
+                    projectile->collision_h = 8;
+                    RES_SpritesheetTextureGet(&projectile->texture);
+                    projectile->sub_texture[0] = (RDR_SubTexture){ 56, 32, 64, 40 };
+                    projectile->health = 1 + GME_state.wave / 8;
+                    speed = 7.0f;
+                } break;
+                
+                case ETT_ProjectileKind_slime:
+                {
+                    projectile->flags |= ETT_Flags_removeOnContact;
+                    projectile->flags |= ETT_Flags_removeAfterTimer;
+                    projectile->collide_with |= (Bit(ETT_CollisionLayer_fallingSand) |
+                                                 Bit(ETT_CollisionLayer_player));
+                    projectile->timer = 0.3f;
+                    projectile->collision_w = 6;
+                    projectile->collision_h = 6;
+                    RES_SpritesheetTextureGet(&projectile->texture);
+                    projectile->sub_texture[0] = (RDR_SubTexture){ 49, 9, 55, 15 };
+                    projectile->health = 2;
+                    speed = 8.0f;
+                } break;
+            }
+            
+            {
+                float a = target_x - source_x;
+                float b = target_y - source_y;
+                float normalise = MTH_ReciprocalSqrtF(a * a + b * b);
+                projectile->vel_x = a * normalise * speed;
+                projectile->vel_y = b * normalise * speed;
+            }
         }
     }
     
@@ -743,129 +845,165 @@ ETT_Update(const PLT_GameInput *input,
         e->prev_x = e->x;
         e->prev_y = e->y;
         
-        e->timer -= GME_timestep;
+        e->timer -= GME_timestep * GME_state.time_dilation;
+        e->fire_timer -= GME_timestep * GME_state.time_dilation;
         
-        if (e->flags & ETT_Flags_gravity)
+        if (ETT_State_hidden != e->state)
         {
-            e->vel_y += ETT_gravityStrength;
-        }
-        
-        if (e->flags & ETT_Flags_playAnimation &&
-            0 == (tick_count % e->animation_frame_time))
-        {
-            e->animation_frame += 1;
-            if (e->animation_frame > e->animation_loop_end)
+            if (e->flags & ETT_Flags_gravity)
             {
-                e->animation_frame = e->animation_loop_begin;
-            }
-        }
-        
-        if (e->flags & ETT_Flags_isPlayer)
-        {
-            player = e;
-            
-            int move_left = (input->is_key_down[PLT_Key_a] || input->is_key_down[PLT_Key_left]);
-            int move_right = (input->is_key_down[PLT_Key_d] || input->is_key_down[PLT_Key_right]);
-            int jump = (input->is_key_down[PLT_Key_w] || input->is_key_down[PLT_Key_up] || input->is_key_down[PLT_Key_space]);
-            
-            if (move_left)
-            {
-                e->vel_x = MTH_MaxI(e->vel_x - 1, -e->speed);
-            }
-            else if (move_right)
-            {
-                e->vel_x = MTH_MinI(e->vel_x + 1, e->speed);
-            }
-            else
-            {
-                e->vel_x /= 2;
+                e->vel_y += ETT_gravityStrength;
             }
             
-            e->state = ETT_State_jumping;
-            for (int x = 0;
-                 x < e->collision_w;
-                 x += 1)
+            if (e->flags & ETT_Flags_playAnimation &&
+                0 == (tick_count % e->animation_frame_time))
             {
-                if (FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + e->collision_h + 1, FLS_CellFlags_solid))
+                e->animation_frame += 1;
+                if (e->animation_frame > e->animation_loop_end)
                 {
-                    e->state = ETT_State_default;
-                    break;
+                    e->animation_frame = e->animation_loop_begin;
                 }
             }
             
-            if (jump)
+            if (e->flags & ETT_Flags_isPlayer)
             {
-                if (ETT_State_jumping != e->state)
-                {
-                    e->vel_y -= ETT_playerJumpPower;
-                }
-                else if (e->jump_charge < ETT_playerJumpMax)
-                {
-                    e->vel_y -= ETT_playerJumpPower;
-                    e->jump_charge += 1;
-                }
-            }
-            else if (ETT_State_jumping != e->state)
-            {
-                e->jump_charge = 0;
-            }
-            
-            e->is_v_flip = input->mouse_x < e->x;
-            
-            if (input->is_key_down[PLT_Key_mouseLeft])
-            {
-                e->flags |= ETT_Flags_fireProjectile;
-                projectile_target_x = input->mouse_x;
-                projectile_target_y = input->mouse_y;
-            }
-            else
-            {
-                e->flags &= ~ETT_Flags_fireProjectile;
-            }
-            
-            if (e->health <= 0)
-            {
-                ETT_SmokeParticlesMake(128, e->x, e->y);
+                player = e;
                 
-                e->health = 1;
-                e->timer = 3.0f;
-                e->flags &= ~ETT_Flags_takeDamage;
-                e->flags &= ~ETT_Flags_drawSubTexture;
-                e->flags &= ~ETT_Flags_drawHealthBar;
-                e->flags |= ETT_Flags_removeAfterTimer;
-                GME_timestep = 0.066667;
-                return;
-            }
-        }
-        
-        if (player)
-        {
-            int x_dist = MTH_AbsI(e->x - player->x);
-            int y_dist = MTH_AbsI(e->y - player->y);
-            int distance_from_player = MTH_SqrtF(x_dist * x_dist + y_dist * y_dist);
-            
-            if (distance_from_player >= e->range_min &&
-                distance_from_player < e->range_max)
-            {
-                if (e->flags & ETT_Flags_humanoidAI)
+                int move_left = (input->is_key_down[PLT_Key_a] || input->is_key_down[PLT_Key_left]);
+                int move_right = (input->is_key_down[PLT_Key_d] || input->is_key_down[PLT_Key_right]);
+                int jump = (input->is_key_down[PLT_Key_w] || input->is_key_down[PLT_Key_up] || input->is_key_down[PLT_Key_space]);
+                
+                if (move_left)
                 {
-                    e->state = ETT_State_chasing;
-                    
-                    if (player->x < e->x)
+                    e->vel_x = MTH_MaxI(e->vel_x - 1, -e->speed);
+                }
+                else if (move_right)
+                {
+                    e->vel_x = MTH_MinI(e->vel_x + 1, e->speed);
+                }
+                else
+                {
+                    e->vel_x /= 2;
+                }
+                
+                if (ETT_State_swimming == e->state)
+                {
+                    e->vel_y -= jump * ETT_playerJumpPower;
+                    e->vel_y = MTH_MaxF(e->vel_y, - ETT_playerJumpPower);
+                }
+                else
+                {
+                    e->state = ETT_State_jumping;
+                    for (int x = 0;
+                         x < e->collision_w;
+                         x += 1)
                     {
-                        if (e->vel_x > -e->speed)
+                        if (FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + e->collision_h + 1, FLS_CellFlags_solid))
                         {
-                            e->vel_x -= 1;
+                            e->state = ETT_State_default;
+                            break;
                         }
-                        e->is_v_flip = 1;
                     }
-                    else if (player->x > e->x)
+                    
+                    if (jump)
                     {
-                        if (e->vel_x < e->speed)
+                        if (ETT_State_jumping != e->state)
                         {
-                            e->vel_x += 1;
+                            e->vel_y -= ETT_playerJumpPower;
                         }
-                        e->is_v_flip = 0;
+                        else if (e->jump_charge < ETT_playerJumpMax)
+                        {
+                            e->vel_y -= ETT_playerJumpPower;
+                            e->jump_charge += 1;
+                        }
+                    }
+                    else if (ETT_State_jumping != e->state)
+                    {
+                        e->jump_charge = 0;
+                    }
+                }
+                
+                e->is_v_flip = input->mouse_x < e->x;
+                
+                if (input->is_key_down[PLT_Key_mouseLeft])
+                {
+                    e->flags |= ETT_Flags_fireProjectile;
+                    projectile_target_x = input->mouse_x;
+                    projectile_target_y = input->mouse_y;
+                }
+                else
+                {
+                    e->flags &= ~ETT_Flags_fireProjectile;
+                }
+                
+                if (e->health <= 0)
+                {
+                    ETT_SmokeParticlesMake(128, e->x, e->y);
+                    
+                    e->state = ETT_State_hidden;
+                    e->health = 1;
+                    e->timer = 3.0f;
+                    e->flags &= ~ETT_Flags_takeDamage;
+                    e->flags &= ~ETT_Flags_drawSubTexture;
+                    e->flags &= ~ETT_Flags_drawHealthBar;
+                    e->flags &= ~ETT_Flags_drawTimerBar;
+                    e->flags |= ETT_Flags_removeAfterTimer;
+                    GME_state.time_dilation = 4.0;
+                    return;
+                }
+            }
+            
+            if ((ETT_Flags_drown & e->flags) &&
+                ETT_State_swimming == e->state &&
+                e->timer < 0.0)
+            {
+                e->health -= 1;
+            }
+            
+            if (player)
+            {
+                int x_dist = MTH_AbsI(e->x - player->x);
+                int y_dist = MTH_AbsI(e->y - player->y);
+                int distance_from_player = MTH_SqrtF(x_dist * x_dist + y_dist * y_dist);
+                
+                if (e->flags & ETT_Flags_flyingAI)
+                {
+                    if (player->x < e->x - e->collision_w)
+                    {
+                        e->vel_x = -e->speed;
+                    }
+                    else if (player->x > e->x + e->collision_w)
+                    {
+                        e->vel_x = +e->speed;
+                    }
+                }
+                
+                if (distance_from_player >= e->range_min &&
+                    distance_from_player < e->range_max)
+                {
+                    if (e->flags & ETT_Flags_isCloud)
+                    {
+                        e->flags |= ETT_Flags_rain;
+                    }
+                    
+                    if (e->flags & ETT_Flags_humanoidAI)
+                    {
+                        if (player->x < e->x)
+                        {
+                            if (e->vel_x > -e->speed)
+                            {
+                                e->vel_x -= 1;
+                            }
+                            e->is_v_flip = 1;
+                        }
+                        else if (player->x > e->x)
+                        {
+                            if (e->vel_x < e->speed)
+                            {
+                                e->vel_x += 1;
+                            }
+                            e->is_v_flip = 0;
+                        }
                     }
                     
                     if (e->flags & ETT_Flags_fireAtPlayer)
@@ -877,153 +1015,189 @@ ETT_Update(const PLT_GameInput *input,
                 }
                 else
                 {
-                    if (e->flags & ETT_Flags_humanoidAI)
-                    {
-                        e->state = ETT_State_default;
-                    }
-                    
                     if (e->flags & ETT_Flags_fireAtPlayer)
                     {
                         e->flags &= ~ETT_Flags_fireProjectile;
                     }
+                    
+                    if (e->flags & ETT_Flags_isCloud)
+                    {
+                        e->flags &= ~ETT_Flags_rain;
+                    }
                 }
-            }
-            
-            if (e->flags & ETT_Flags_attractedToPlayer &&
-                e->range_max >= distance_from_player )
-            {
-                int damping = 8;
-                int from_x = e->x + e->collision_w / 2;
-                int from_y = e->y + e->collision_h / 2;
-                int to_x = player->x + player->collision_w / 2;
-                int to_y = player->y + player->collision_h / 2;
                 
-                e->x += (to_x - from_x) / damping;
-                e->y += (to_y - from_y) / damping;
-            }
-        }
-        
-        if (e->flags & ETT_Flags_fireProjectile)
-        {
-            if (e->timer < 0.0f)
-            {
-                ETT_ProjectileMake(e->projectile_kind,
-                                   e,
-                                   e->x,
-                                   e->y + e->collision_h / 2,
-                                   projectile_target_x,
-                                   projectile_target_y);
-                e->timer = e->fire_rate;
-            }
-        }
-        
-        if (e->flags & ETT_Flags_walkAnimation)
-        {
-            if (e->state == ETT_State_jumping)
-            {
-                e->animation_frame = 1;
-            }
-            else
-            {
-                if (e->vel_x != 0)
+                if (e->flags & ETT_Flags_attractedToPlayer &&
+                    e->range_max >= distance_from_player )
                 {
-                    e->flags |= ETT_Flags_playAnimation;
-                }
-                else
-                {
-                    e->flags &= ~ETT_Flags_playAnimation;
-                    e->animation_frame = 0;
+                    int damping = 8;
+                    int from_x = e->x + e->collision_w / 2;
+                    int from_y = e->y + e->collision_h / 2;
+                    int to_x = player->x + player->collision_w / 2;
+                    int to_y = player->y + player->collision_h / 2;
+                    
+                    e->x += (to_x - from_x) / damping;
+                    e->y += (to_y - from_y) / damping;
                 }
             }
-        }
-        
-        //-NOTE(tbt): collisions with falling sand sim stuff
-        if (e->collide_with & Bit(ETT_CollisionLayer_fallingSand))
-        {
-            int collision_count = 0;
             
-            for (int y = 0;
-                 y < e->collision_h;
-                 y += 1)
+            if (e->flags & ETT_Flags_rain)
             {
                 for (int x = 0;
                      x < e->collision_w;
                      x += 1)
                 {
-                    if (FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_solid))
+                    if (!RNG_RandIntNext(0, 4))
                     {
-                        collision_count += 1;
-                    }
-                    
-                    if (FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_solid) &&
-                        (e->flags & ETT_Flags_removeOnContact))
-                    {
-                        e->state = ETT_State_removed;
-                    }
-                    
-                    int radius = e->collision_w / 2;
-                    if ((x - radius) * (x - radius) + (y - radius) * (y - radius) < radius * radius &&
-                        FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_destructable) &&
-                        (e->flags & ETT_Flags_destructive))
-                    {
-                        FLS_CellAt(falling_sand_state, e->x + x, e->y + y) = FLS_CellKind_empty;
+                        FLS_CellAt(falling_sand_state, e->x + x, e->y + e->collision_h) = FLS_CellKind_water;
                     }
                 }
             }
             
-            if (collision_count > (e->collision_w * e->collision_h) / 2 &&
-                (e->flags & ETT_Flags_removeWhenSubmerged))
+            if (e->flags & ETT_Flags_fireProjectile)
             {
-                e->state = ETT_State_removed;
-            }
-        }
-        
-        // NOTE(tbt): collisions with other entities
-        for (ETT_Entity *f = ETT_entities.active_list;
-             NULL != f;
-             f = f->next)
-        {
-            if (e != f &&
-                (Bit(e->collision_layer) & f->collide_with) &&
-                (Bit(f->collision_layer) & e->collide_with) &&
-                !(e->x > f->x + f->collision_w || e->x + e->collision_w < f->x ||
-                  e->y > f->y + f->collision_h || e->y + e->collision_h < f->y))
-            {
-                if ((e->flags & ETT_Flags_isMonster) &&
-                    (f->flags & ETT_Flags_isMonster))
+                if (e->fire_timer < 0.0f)
                 {
-                    // TODO(tbt): move monsters out of each other
+                    ETT_ProjectileMake(e->projectile_kind,
+                                       e,
+                                       e->x,
+                                       e->y + e->collision_h / 2,
+                                       projectile_target_x,
+                                       projectile_target_y);
+                    e->fire_timer = e->fire_rate;
+                }
+            }
+            
+            if (e->flags & ETT_Flags_walkAnimation)
+            {
+                if (e->state == ETT_State_jumping)
+                {
+                    e->animation_frame = 1;
+                }
+                else
+                {
+                    if (e->vel_x != 0)
+                    {
+                        e->flags |= ETT_Flags_playAnimation;
+                    }
+                    else
+                    {
+                        e->flags &= ~ETT_Flags_playAnimation;
+                        e->animation_frame = 0;
+                    }
+                }
+            }
+            
+            if (e->flags & ETT_Flags_mobMovement)
+            {
+                int edge_collision_w = 16;
+                e->x = MTH_ClampI(e->x, edge_collision_w, PLT_gameFixedW - e->collision_w - edge_collision_w);
+                e->x = MTH_ClampI(e->x, 0, PLT_gameFixedW - e->vel_x);
+                
+                ETT_HelpMePleaseWhatAmIDoing(input, falling_sand_state, e);
+            }
+            
+            if (e->flags & ETT_Flags_simpleMovement)
+            {
+                e->x += e->vel_x;
+                e->y += e->vel_y;
+            }
+            
+            //-NOTE(tbt): collisions with falling sand sim stuff
+            if (e->collide_with & Bit(ETT_CollisionLayer_fallingSand))
+            {
+                int solid_count = 0;
+                int water_count = 0;
+                
+                for (int y = 0;
+                     y < e->collision_h;
+                     y += 1)
+                {
+                    for (int x = 0;
+                         x < e->collision_w;
+                         x += 1)
+                    {
+                        solid_count += FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_solid);
+                        water_count += (FLS_CellKind_water == FLS_CellAt(falling_sand_state, e->x + x, e->y + y));
+                        
+                        if (FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_solid) &&
+                            (e->flags & ETT_Flags_removeOnContact))
+                        {
+                            e->state = ETT_State_removed;
+                        }
+                        
+                        int radius = e->collision_w / 2;
+                        if ((x - radius) * (x - radius) + (y - radius) * (y - radius) < radius * radius &&
+                            FLS_CellAtHasFlag(falling_sand_state, e->x + x, e->y + y, FLS_CellFlags_destructable) &&
+                            (e->flags & ETT_Flags_destructive))
+                        {
+                            FLS_CellAt(falling_sand_state, e->x + x, e->y + y) = FLS_CellKind_empty;
+                        }
+                    }
                 }
                 
-                if ((e->flags & ETT_Flags_dealDamage) &&
-                    (f->flags & ETT_Flags_takeDamage))
+                if (solid_count > (e->collision_w * e->collision_h) / 2 &&
+                    (e->flags & ETT_Flags_removeWhenSubmerged))
                 {
-                    f->health = MTH_ClampI(f->health - e->health, 0, f->max_health);
-                    
-                    if ((e->flags & ETT_Flags_knockBack) &&
-                        (f->flags & ETT_Flags_knockedBack))
+                    e->state = ETT_State_removed;
+                }
+                
+                if (water_count > (e->collision_w * e->collision_h) / 2)
+                {
+                    if (ETT_State_swimming != e->state &&
+                        (e->flags & ETT_Flags_drown))
                     {
-                        f->vel_x += e->vel_x;
-                        f->vel_y += e->vel_y;
+                        e->timer = e->timer_max;
+                        e->flags |= ETT_Flags_drawTimerBar;
                     }
                     
-                    if (e->flags & ETT_Flags_removeOnContact)
+                    e->state = ETT_State_swimming;
+                }
+                else
+                {
+                    if (e->flags & ETT_Flags_drown)
                     {
-                        e->state = ETT_State_removed;
+                        e->state = ETT_State_default;
+                        e->flags &= ~ETT_Flags_drawTimerBar;
                     }
                 }
             }
-        }
-        
-        if (e->flags & ETT_Flags_mobMovement)
-        {
-            ETT_HelpMePleaseWhatAmIDoing(input, falling_sand_state, e);
-        }
-        
-        if (e->flags & ETT_Flags_simpleMovement)
-        {
-            e->x += e->vel_x;
-            e->y += e->vel_y;
+            
+            //-NOTE(tbt): collisions with other entities
+            for (ETT_Entity *f = ETT_entities.active_list;
+                 NULL != f;
+                 f = f->next)
+            {
+                if (e != f &&
+                    (Bit(e->collision_layer) & f->collide_with) &&
+                    (Bit(f->collision_layer) & e->collide_with) &&
+                    !(e->x > f->x + f->collision_w || e->x + e->collision_w < f->x ||
+                      e->y > f->y + f->collision_h || e->y + e->collision_h < f->y))
+                {
+                    if ((e->flags & ETT_Flags_isMonster) &&
+                        (f->flags & ETT_Flags_isMonster))
+                    {
+                        // TODO(tbt): move monsters out of each other
+                    }
+                    
+                    if ((e->flags & ETT_Flags_dealDamage) &&
+                        (f->flags & ETT_Flags_takeDamage))
+                    {
+                        f->health = MTH_ClampI(f->health - e->health, 0, f->max_health);
+                        
+                        if ((e->flags & ETT_Flags_knockBack) &&
+                            (f->flags & ETT_Flags_knockedBack))
+                        {
+                            f->vel_x += e->vel_x;
+                            f->vel_y += e->vel_y;
+                        }
+                        
+                        if (e->flags & ETT_Flags_removeOnContact)
+                        {
+                            e->state = ETT_State_removed;
+                        }
+                    }
+                }
+            }
         }
         
         if (((e->flags & ETT_Flags_removeWhenHealthDepleted) && e->health <= 0) ||
@@ -1073,12 +1247,12 @@ ETT_Update(const PLT_GameInput *input,
             
             if (e->flags & ETT_Flags_isPlayer)
             {
-                GME_state = GME_State_gameOver;
+                GME_state.state = GME_State_gameOver;
             }
             
             if (e->flags & ETT_Flags_isMonster)
             {
-                GME_monsterCount -= 1;
+                GME_state.monster_count -= 1;
             }
             
             if (prev)
@@ -1112,7 +1286,7 @@ ETT_Render(const PLT_GameInput *input,
          NULL != e;
          e = e->next)
     {
-        int t = 255.0 * (accumulator / GME_timestep);
+        int t = 255.0 * (accumulator / (GME_timestep * GME_state.time_dilation));
         int interpolated_x = MTH_InterpolateLinearI(e->prev_x, e->x, t);
         int interpolated_y = MTH_InterpolateLinearI(e->prev_y, e->y, t);
         
@@ -1131,19 +1305,40 @@ ETT_Render(const PLT_GameInput *input,
                                e->is_v_flip * RDR_DrawSubTextureFlags_vFlip);
         }
         
+        int progress_bar_y = e->y;
+        
         if (e->flags & ETT_Flags_drawHealthBar)
         {
-            int w = ((float)e->health / (float)e->max_health) * ETT_healthBarWidth;
-            int h = 4;
-            int x = e->x + (e->collision_w - ETT_healthBarWidth) / 2;
-            int y = e->y - h * 2;
+            progress_bar_y -= ETT_progressBarHeight * 2;
+            
+            int w = ((float)e->health / (float)e->max_health) * ETT_progressBarWidth;
+            int h = ETT_progressBarHeight;
+            int x = e->x + (e->collision_w - ETT_progressBarWidth) / 2;
+            int y = progress_bar_y;
             
             RDR_DrawRectangleFill(input,
-                                  RectLit(x, y, ETT_healthBarWidth, h),
+                                  RectLit(x, y, ETT_progressBarWidth, h),
                                   ColLit(24, 6, 0, 255));
             RDR_DrawRectangleFill(input,
                                   RectLit(x, y, w, h),
                                   ColLit(24, 12, 200, 255));
+        }
+        
+        if (e->flags & ETT_Flags_drawTimerBar)
+        {
+            progress_bar_y -= ETT_progressBarHeight * 2;
+            
+            int w = ((float)e->timer / (float)e->timer_max) * ETT_progressBarWidth;
+            int h = ETT_progressBarHeight;
+            int x = e->x + (e->collision_w - ETT_progressBarWidth) / 2;
+            int y = progress_bar_y;
+            
+            RDR_DrawRectangleFill(input,
+                                  RectLit(x, y, ETT_progressBarWidth, h),
+                                  ColLit(24, 6, 0, 255));
+            RDR_DrawRectangleFill(input,
+                                  RectLit(x, y, w, h),
+                                  ColLit(200, 24, 12, 255));
         }
     }
 }
