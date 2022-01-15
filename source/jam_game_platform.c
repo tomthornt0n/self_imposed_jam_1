@@ -3,6 +3,7 @@
 //
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define ArrayCount(_a) (sizeof(_a) / sizeof(_a[0]))
 
@@ -120,8 +121,6 @@ typedef enum
 typedef struct
 {
     Pixel *pixels;
-    size_t window_w;
-    size_t window_h;
     
     double dt;
     
@@ -132,10 +131,3 @@ typedef struct
 
 void GME_Initialise(const PLT_GameInput *input);
 void GME_UpdateAndRender(const PLT_GameInput *input);
-
-typedef enum
-{
-    PLT_ResourceID_bg,
-} PLT_ResourceID;
-
-void *PLT_ResourceGet(PLT_ResourceID id);

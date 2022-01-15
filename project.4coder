@@ -1,7 +1,7 @@
 version(1);
-                  
+
 project_name = "New Project";
-                  
+
 patterns =
 {
     "*.c",
@@ -27,6 +27,9 @@ load_paths =
     {
         { {"."}, .recursive = true, .relative = true }, .os = "win"
     },
+    {
+        { {"."}, .recursive = true, .relative = true }, .os = "linux"
+    },
 };
 
 command_list =
@@ -39,11 +42,11 @@ command_list =
         .cursor_at_end = false,
         .cmd =
         {
-            { ".\windows_build.bat", .os = "win" },
-            { "echo Linux build command not implemented for 4coder project.", .os = "linux" },
+            { "windows_build.bat", .os = "win" },
+            { "./linux_build.sh", .os = "linux" },
         },
     },
-              
+    
     {
         .name = "run",
         .out = "*compilation*",
@@ -52,53 +55,12 @@ command_list =
         .cursor_at_end = false,
         .cmd =
         {
-            { "cd build && .\jam_game.exe", .os = "win" },
-            { "echo Linux run command not implemented for 4coder project.", .os = "linux" },
-        },
-    },
-
-    {
-        .name = "build_and_run",
-        .out = "*compilation*",
-        .footer_panel = true,
-        .save_dirty_files = true,
-        .cursor_at_end = false,
-        .cmd =
-        {
-            { ".\windows_build.bat && cd build && .\jam_game.exe", .os = "win" },
-            { "echo Linux run command not implemented for 4coder project.", .os = "linux" },
+            { "build\jam_game.exe", .os = "win" },
+            { "./build/jam_game", .os = "linux" },
         },
     },
     
-    {
-        .name = "build_resources",
-        .out = "*compilation*",
-        .footer_panel = true,
-        .save_dirty_files = true,
-        .cursor_at_end = false,
-        .cmd =
-        {
-            { ".\windows_build_resources.bat && .\windows_build", .os = "win" },
-            { "echo Linux build assets command not implemented for 4coder project.", .os = "linux" },
-        },
-    },
-
-    {
-        .name = "build_resource_packer",
-        .out = "*compilation*",
-        .footer_panel = true,
-        .save_dirty_files = true,
-        .cursor_at_end = false,
-        .cmd =
-        {
-            { "cd build && cl ..\source\resembed.c /O2 /link Shlwapi.lib /out:resembed.exe", .os = "win" },
-            { "echo Linux build assets command not implemented for 4coder project.", .os = "linux" },
-        },
-    },
 };
-          
+
 fkey_command[1] = "build";
 fkey_command[2] = "run";
-fkey_command[3] = "build_resources";
-fkey_command[5] = "build_and_run";
-fkey_command[11] = "build_resource_packer";

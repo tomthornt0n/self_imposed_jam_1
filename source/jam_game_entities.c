@@ -710,7 +710,7 @@ ETT_ProjectileMake(ETT_ProjectileKind kind,
             {
                 float a = target_x - source_x;
                 float b = target_y - source_y;
-                float normalise = MTH_ReciprocalSqrtF(a * a + b * b);
+                float normalise = MTH_AbsF(MTH_ReciprocalSqrtF(a * a + b * b));
                 projectile->vel_x = a * normalise * speed;
                 projectile->vel_y = b * normalise * speed;
             }

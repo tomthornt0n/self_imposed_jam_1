@@ -119,9 +119,6 @@ WinMain(HINSTANCE instance_handle,
     
     W32_UpdateWindowSize(window_handle);
     
-    W32_os.window_w = PLT_gameFixedW;
-    W32_os.window_h = PLT_gameFixedH;
-    
     GME_Initialise(&W32_os);
     W32_isGameInitialised = 1;
     
@@ -153,7 +150,7 @@ WinMain(HINSTANCE instance_handle,
         
         HDC device_context_handle = GetDC(window_handle);
         {
-            W32_DrawPixelsToWindow(device_context_handle, W32_graphicsContext.pixels, W32_os.window_w, W32_os.window_h);
+            W32_DrawPixelsToWindow(device_context_handle, W32_graphicsContext.pixels, PLT_gameFixedW, PLT_gameFixedH);
         } ReleaseDC(window_handle, device_context_handle);
         
         QueryPerformanceCounter(&end_t);
@@ -181,7 +178,7 @@ W32_EventCallback(HWND window_handle,
         PAINTSTRUCT ps;
         HDC device_context_handle = BeginPaint(window_handle, &ps);
         
-        W32_DrawPixelsToWindow(device_context_handle, W32_graphicsContext.pixels, W32_os.window_w, W32_os.window_h);
+        W32_DrawPixelsToWindow(device_context_handle, W32_graphicsContext.pixels, PLT_gameFixedW, PLT_gameFixedH);
         
         return EndPaint(window_handle, &ps);
     }

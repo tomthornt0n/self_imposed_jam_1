@@ -1,5 +1,7 @@
 @echo off
 
+if not exist build mkdir build
+
 pushd build
 
 echo ~~~~~~~~~~ generating resource C files ~~~~~~~~~~

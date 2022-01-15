@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 typedef struct
 {
  size_t w;

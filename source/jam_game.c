@@ -1,5 +1,7 @@
 #include <math.h>
 #include <immintrin.h>
+#include <stdio.h>
+#include <string.h>
 
 typedef struct
 {
@@ -18,17 +20,19 @@ static const double GME_timestep = 0.0167;
 
 typedef enum
 {
+    GME_State_menu,
     GME_State_playing,
     GME_State_gameOver,
 } GME_State;
 
-static struct
+typedef struct
 {
     double time_dilation;
     int monster_count;
     int wave;
     GME_State state;
-} GME_state = {0};
+} GME_Data;
+static GME_Data GME_state = {0};
 
 #include "jam_game_platform.c"
 #include "jam_game_resources.gen.c"
@@ -79,52 +83,62 @@ GME_UpdateAndRender(const PLT_GameInput *input)
     {
         accumulator -= GME_timestep * GME_state.time_dilation;
         
-        if (GME_State_playing == GME_state.state)
+        if (GME_State_playing == GME_state.state || GME_State_menu == GME_state.state)
         {
             FLS_Update(input, &GME_fallingSandState);
             ETT_Update(input, &GME_fallingSandState);
             
-            if (GME_state.monster_count <= 0)
+            if(GME_State_playing == GME_state.state)
             {
-                GME_state.wave += 1;
-                
-                for (int i = 0;
-                     i < GME_state.wave;
-                     i += 1)
+                if (GME_state.monster_count <= 0)
                 {
-                    int x = RNG_RandIntNext(0, PLT_gameFixedW - 48);
-                    int y = 47;
+                    GME_state.wave += 1;
                     
-                    enum
+                    for (int i = 0;
+                         i < GME_state.wave;
+                         i += 1)
                     {
-                        MonsterKind_sandGolem,
-                        MonsterKind_dirtGolem,
-                        MonsterKind_stoneGolem,
-                        MonsterKind_cloud,
-                        MonsterKind_slime,
-                        MonsterKind_MAX,
-                    } monster_kind = RNG_RandIntNext(0, MonsterKind_MAX);
-                    
-                    if (monster_kind == MonsterKind_sandGolem)
-                    {
-                        ETT_SandGolemMake(x, y);
+                        int x = RNG_RandIntNext(0, PLT_gameFixedW - 48);
+                        int y = 47;
+                        
+                        enum
+                        {
+                            MonsterKind_sandGolem,
+                            MonsterKind_dirtGolem,
+                            MonsterKind_stoneGolem,
+                            MonsterKind_cloud,
+                            MonsterKind_slime,
+                            MonsterKind_MAX,
+                        } monster_kind = RNG_RandIntNext(0, MonsterKind_MAX);
+                        
+                        if (monster_kind == MonsterKind_sandGolem)
+                        {
+                            ETT_SandGolemMake(x, y);
+                        }
+                        else if (monster_kind == MonsterKind_dirtGolem)
+                        {
+                            ETT_DirtGolemMake(x, y);
+                        }
+                        else if (monster_kind == MonsterKind_slime)
+                        {
+                            ETT_SlimeMake(x, y);
+                        }
+                        else if (monster_kind == MonsterKind_stoneGolem)
+                        {
+                            ETT_StoneGolemMake(x, y);
+                        }
+                        else if (monster_kind == MonsterKind_cloud)
+                        {
+                            ETT_CloudMake(x, y + RNG_RandIntNext(0, 16));
+                        }
                     }
-                    else if (monster_kind == MonsterKind_dirtGolem)
-                    {
-                        ETT_DirtGolemMake(x, y);
-                    }
-                    else if (monster_kind == MonsterKind_slime)
-                    {
-                        ETT_SlimeMake(x, y);
-                    }
-                    else if (monster_kind == MonsterKind_stoneGolem)
-                    {
-                        ETT_StoneGolemMake(x, y);
-                    }
-                    else if (monster_kind == MonsterKind_cloud)
-                    {
-                        ETT_CloudMake(x, y + RNG_RandIntNext(0, 16));
-                    }
+                }
+            }
+            else
+            {
+                if(input->is_key_down[PLT_Key_enter])
+                {
+                    GME_state.state = GME_State_playing;
                 }
             }
         }
@@ -133,7 +147,7 @@ GME_UpdateAndRender(const PLT_GameInput *input)
         }
     }
     
-    if (GME_State_playing == GME_state.state)
+    if (GME_State_playing == GME_state.state || GME_State_menu == GME_state.state)
     {
         RDR_DrawSubTexture(input, &GME_backgroundTexture, RectLit(0, 0, GME_backgroundTexture.w, GME_backgroundTexture.h), 0, 0, RDR_DrawSubTextureFlags_isBg);
         ETT_Render(input, accumulator);
@@ -141,11 +155,16 @@ GME_UpdateAndRender(const PLT_GameInput *input)
         RDR_DrawShadows(input, 12);
         
         // NOTE(tbt): draw score text
+        char score_str[64];
+        if(GME_State_playing == GME_state.state)
         {
-            char score_str[64];
             stbsp_snprintf(score_str, sizeof(score_str), "score: %d", GME_CalculateScore());
-            RDR_DrawString(input, score_str, 4, 4);
         }
+        else
+        {
+            stbsp_snprintf(score_str, sizeof(score_str), "press enter to begin", GME_CalculateScore());
+        }
+        RDR_DrawString(input, score_str, 4, 4);
     }
     else if (GME_State_gameOver == GME_state.state)
     {

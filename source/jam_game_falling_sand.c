@@ -307,33 +307,33 @@ FLS_StateFromTexture(FLS_State *state,
     int max_x = MTH_MinI(texture->w, PLT_gameFixedW);
     int max_y = MTH_MinI(texture->h, PLT_gameFixedH);
     
-    for (int x = 0;
-         x < max_x;
-         x += 1)
+    for (int y = 0;
+         y < max_y;
+         y += 1)
     {
-        for (int y = 0;
-             y < max_y;
-             y += 1)
+        for (int x = 0;
+             x < max_x;
+             x += 1)
         {
-            unsigned long *pixel = (unsigned long *)(&texture->buffer[x + y * texture->w]);
+            Pixel *pixel = (Pixel *)(&texture->buffer[x + y * texture->w]);
             
-            if (*pixel == 0xFF000000)
+            if (0 == pixel->r && 0 == pixel->g && 0 == pixel->b)
             {
                 FLS_CellAt(state, x, y) = FLS_CellKind_stone;
             }
-            else if (*pixel == 0xFFFFFF00)
+            else if (255 == pixel->r && 255 == pixel->g && 0 == pixel->b)
             {
                 FLS_CellAt(state, x, y) = FLS_CellKind_sand;
             }
-            else if (*pixel == 0xFF0000FF)
+            else if (0 == pixel->r && 0 == pixel->g && 255 == pixel->b)
             {
                 FLS_CellAt(state, x, y) = FLS_CellKind_water;
             }
-            else if (*pixel == 0xFF00FF00)
+            else if (0 == pixel->r && 0 == pixel->g && 255 == pixel->b)
             {
                 FLS_CellAt(state, x, y) = FLS_CellKind_gas;
             }
-            else if (*pixel == 0xFFFF0000)
+            else if (255 == pixel->r && 0 == pixel->g && 0 == pixel->b)
             {
                 FLS_CellAt(state, x, y) = FLS_CellKind_dirt;
             }

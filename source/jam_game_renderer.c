@@ -10,7 +10,7 @@ RDR_SetPixel(const PLT_GameInput *input,
 {
     if (colour->a > 0 && PLT_GameHasPixel(x, y))
     {
-        Pixel *pixel= &input->pixels[PLT_GamePixelIndex(x, y)];
+        Pixel *pixel = &input->pixels[PLT_GamePixelIndex(x, y)];
         
         if (colour->a == 255)
         {
@@ -33,7 +33,7 @@ RDR_SetPixel(const PLT_GameInput *input,
 static void
 RDR_ClearScreen(const PLT_GameInput *input)
 {
-    memset(input->pixels, 0, input->window_w * input->window_h * sizeof(Pixel));
+    memset(input->pixels, 0, PLT_gameFixedW * PLT_gameFixedH * sizeof(Pixel));
 }
 
 static void
@@ -42,11 +42,11 @@ RDR_DrawRectangleFill(const PLT_GameInput *input,
                       const Colour *colour)
 {
     for (int y = rect->y0;
-         y < rect->y1 && y < input->window_h;
+         y < rect->y1 && y < PLT_gameFixedH;
          y += 1)
     {
         for (int x = rect->x0;
-             x < rect->x1 && x < input->window_w;
+             x < rect->x1 && x < PLT_gameFixedW;
              x += 1)
         {
             RDR_SetPixel(input, x, y, colour, 0);

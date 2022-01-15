@@ -67,9 +67,8 @@ MTH_ClampF(float a,
 static inline float
 MTH_AbsF(float a)
 {
-    union { float f; unsigned int u; } u_from_f;
-    u_from_f.f = a;
-    u_from_f.u &= ~(1 << 31);
+    float result = (a < 0) ? -a : a;
+    return result;
 }
 
 static float
